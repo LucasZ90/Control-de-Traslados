@@ -1,0 +1,35 @@
+{
+    "14/10/2026": {
+        "Duarte Catalina": {
+            "ida": false,
+            "vuelta": false,
+            "estado": "Ausente (No viajó)",
+            "valor": 0,
+            "listo": false
+        },
+        "Ledesma Tatiana": {
+            "ida": false,
+            "vuelta": false,
+            "estado": "Ausente (No viajó)",
+            "valor": 0
+        },
+        "Mendoza Ramón": {
+            "ida": false,
+            "vuelta": false,
+            "estado": "Ausente (No viajó)",
+            "valor": 0
+        },
+        "Paiva Oscar": {
+            "ida": false,
+            "vuelta": false,
+            "estado": "Ausente (No viajó)",
+            "valor": 0
+        },
+        "Meza Adriana": {
+            "ida": false,
+            "vuelta": false,
+            "estado": "Ausente (No viajó)",
+            "valor": 0
+        }
+    }
+}

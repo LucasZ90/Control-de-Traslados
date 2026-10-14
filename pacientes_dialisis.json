@@ -1,0 +1,81 @@
+{
+    "MWF": [
+        {
+            "nombre": "Duarte Catalina",
+            "turno": "05:40",
+            "maps_link": "",
+            "contactos": []
+        },
+        {
+            "nombre": "Meza Adriana",
+            "turno": "08:40",
+            "maps_link": "",
+            "contactos": []
+        },
+        {
+            "nombre": "Paiva Oscar",
+            "turno": "05:40",
+            "maps_link": "https://www.reddit.com/r/argentina/comments/1man72j/f1_en_vivo_gratis_en_argentina/",
+            "contactos": [
+                {
+                    "numero": "3725467350",
+                    "relacion": "Contacto"
+                },
+                {
+                    "numero": "3725457221",
+                    "relacion": "Señora"
+                }
+            ]
+        },
+        {
+            "nombre": "Ledesma Tatiana",
+            "turno": "05:40",
+            "maps_link": "",
+            "contactos": []
+        },
+        {
+            "nombre": "Mendoza Ramón",
+            "turno": "05:40",
+            "maps_link": "",
+            "contactos": []
+        }
+    ],
+    "TTS": [
+        {
+            "nombre": "Cantero Miguel",
+            "turno": "05:40",
+            "maps_link": "",
+            "contactos": []
+        },
+        {
+            "nombre": "Martinez José",
+            "turno": "05:40",
+            "maps_link": "",
+            "contactos": []
+        },
+        {
+            "nombre": "Píriz Maximiliano",
+            "turno": "05:40",
+            "maps_link": "",
+            "contactos": []
+        },
+        {
+            "nombre": "Ramírez Orlando",
+            "turno": "08:40",
+            "maps_link": "",
+            "contactos": []
+        },
+        {
+            "nombre": "Villalba Nelida",
+            "turno": "08:40",
+            "maps_link": "",
+            "contactos": []
+        },
+        {
+            "nombre": "Cardozo José",
+            "turno": "08:40",
+            "maps_link": "",
+            "contactos": []
+        }
+    ]
+}
