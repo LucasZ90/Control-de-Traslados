@@ -14,7 +14,6 @@ st.set_page_config(
 # --- ESTILOS VISUALES Y PALETA DE COLORES PROFESIONAL ---
 st.markdown("""
     <style>
-    /* Estilo general limpio y moderno */
     .stApp {
         background-color: #0E1117;
         color: #FAFAFA;
@@ -30,7 +29,6 @@ st.markdown("""
         color: #E2E8F0;
         font-family: 'Inter', sans-serif;
     }
-    /* Botones de navegación superior más estéticos */
     div.stButton > button {
         border-radius: 8px;
         font-weight: 600;
@@ -145,10 +143,10 @@ def actualizar_valores_paciente(info):
     info["valor"] = 0
 
 
-def generar_excel_bytes(datos):
+def generar_excel_bytes(datos, es_diario=False):
   wb = openpyxl.Workbook()
   ws = wb.active
-  ws.title = "Resumen Mensual"
+  ws.title = "Resumen Diario" if es_diario else "Resumen Mensual"
 
   encabezados = ["Fecha", "Paciente", "Estado", "Valor ($)"]
   ws.append(encabezados)
@@ -214,10 +212,10 @@ def generar_excel_bytes(datos):
   return output.getvalue()
 
 
-# Título serio sin emojis ni dibujos de autos
+# Título principal limpio
 st.title("Gestión de Traslados")
 
-# --- NAVEGACIÓN SUPERIOR COMPACTA (3 BOTONES UNO AL LADO DEL OTRO) ---
+# --- NAVEGACIÓN SUPERIOR COMPACTA (3 BOTONES) ---
 if "menu_actual" not in st.session_state:
   st.session_state["menu_actual"] = "Registrar / Actualizar Viajes"
 
@@ -300,7 +298,7 @@ if menu == "Registrar / Actualizar Viajes":
       if not pacientes_t1:
         st.write("*(Sin pacientes programados)*")
 
-      for p in pacientes_t1:
+      for idx_p, p in enumerate(pacientes_t1):
         nombre = p["nombre"]
 
         if nombre not in datos[fecha_str]:
@@ -342,7 +340,7 @@ if menu == "Registrar / Actualizar Viajes":
 
           label_ida = "✅ Ida Realizada" if reg_ida else "❌ Ida Pendiente"
           if col_a.button(
-              label_ida, key=f"t1_ida_{nombre}", use_container_width=True
+              label_ida, key=f"t1_i_{idx_p}_{nombre}", use_container_width=True
           ):
             info_paciente["ida"] = not reg_ida
             actualizar_valores_paciente(info_paciente)
@@ -351,7 +349,7 @@ if menu == "Registrar / Actualizar Viajes":
 
           label_vuelta = "✅ Vuelta Realizada" if reg_vuelta else "❌ Vuelta Pendiente"
           if col_b.button(
-              label_vuelta, key=f"t1_vuelta_{nombre}", use_container_width=True
+              label_vuelta, key=f"t1_v_{idx_p}_{nombre}", use_container_width=True
           ):
             info_paciente["vuelta"] = not reg_vuelta
             actualizar_valores_paciente(info_paciente)
@@ -359,12 +357,12 @@ if menu == "Registrar / Actualizar Viajes":
             st.rerun()
 
           if not is_listo:
-            if st.button("🏁 Finalizar Registro", key=f"t1_fin_{nombre}", use_container_width=True):
+            if st.button("🏁 Finalizar Registro", key=f"t1_f_{idx_p}_{nombre}", use_container_width=True):
               info_paciente["listo"] = True
               guardar_datos(datos)
               st.rerun()
           else:
-            if st.button("🔄 Reabrir Registro", key=f"t1_reab_{nombre}", use_container_width=True):
+            if st.button("🔄 Reabrir Registro", key=f"t1_r_{idx_p}_{nombre}", use_container_width=True):
               info_paciente["listo"] = False
               guardar_datos(datos)
               st.rerun()
@@ -375,7 +373,7 @@ if menu == "Registrar / Actualizar Viajes":
       if not pacientes_t2:
         st.write("*(Sin pacientes programados)*")
 
-      for p in pacientes_t2:
+      for idx_p, p in enumerate(pacientes_t2):
         nombre = p["nombre"]
 
         if nombre not in datos[fecha_str]:
@@ -417,7 +415,7 @@ if menu == "Registrar / Actualizar Viajes":
 
           label_ida = "✅ Ida Realizada" if reg_ida else "❌ Ida Pendiente"
           if col_a.button(
-              label_ida, key=f"t2_ida_{nombre}", use_container_width=True
+              label_ida, key=f"t2_i_{idx_p}_{nombre}", use_container_width=True
           ):
             info_paciente["ida"] = not reg_ida
             actualizar_valores_paciente(info_paciente)
@@ -426,7 +424,7 @@ if menu == "Registrar / Actualizar Viajes":
 
           label_vuelta = "✅ Vuelta Realizada" if reg_vuelta else "❌ Vuelta Pendiente"
           if col_b.button(
-              label_vuelta, key=f"t2_vuelta_{nombre}", use_container_width=True
+              label_vuelta, key=f"t2_v_{idx_p}_{nombre}", use_container_width=True
           ):
             info_paciente["vuelta"] = not reg_vuelta
             actualizar_valores_paciente(info_paciente)
@@ -434,23 +432,29 @@ if menu == "Registrar / Actualizar Viajes":
             st.rerun()
 
           if not is_listo:
-            if st.button("🏁 Finalizar Registro", key=f"t2_fin_{nombre}", use_container_width=True):
+            if st.button("🏁 Finalizar Registro", key=f"t2_f_{idx_p}_{nombre}", use_container_width=True):
               info_paciente["listo"] = True
               guardar_datos(datos)
               st.rerun()
           else:
-            if st.button("🔄 Reabrir Registro", key=f"t2_reab_{nombre}", use_container_width=True):
+            if st.button("🔄 Reabrir Registro", key=f"t2_r_{idx_p}_{nombre}", use_container_width=True):
               info_paciente["listo"] = False
               guardar_datos(datos)
               st.rerun()
 
-      if datos:
+      if fecha_str in datos:
         st.markdown("---")
-        excel_bytes = generar_excel_bytes(datos)
+        # Diccionario con únicamente los datos del día seleccionado
+        datos_del_dia = {fecha_str: datos[fecha_str]}
+        excel_bytes_dia = generar_excel_bytes(datos_del_dia, es_diario=True)
+        
+        # Nombre de archivo dinámico basado en la fecha (ej: resumen_15_10_2026.xlsx)
+        nombre_archivo_dia = f"resumen_{fecha_seleccionada.strftime('%d_%m_%Y')}.xlsx"
+        
         st.download_button(
-            label="📊 Descargar Resumen en Excel (.xlsx)",
-            data=excel_bytes,
-            file_name="control_dialisis_resumen.xlsx",
+            label=f"📊 Descargar Resumen del Día ({fecha_str})",
+            data=excel_bytes_dia,
+            file_name=nombre_archivo_dia,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             type="primary",
             use_container_width=True,
@@ -465,21 +469,20 @@ elif menu == "Gestionar Pacientes":
 
   with pestana1:
     st.subheader("Grupo 1 (Lunes, Miércoles, Viernes)")
-    for p in list(grupo_MWF):
-      nombre_key = p['nombre'].replace(" ", "_").replace(".", "_")
+    for idx_p, p in enumerate(list(grupo_MWF)):
       with st.container(border=True):
         st.markdown(f"**{p['nombre']}** — *Turno: {p['turno']}*")
         
         with st.expander("✏️ Editar"):
-          edit_nombre = st.text_input("Nombre y Apellido", value=p["nombre"], key=f"edit_nom_mwf_{nombre_key}")
+          edit_nombre = st.text_input("Nombre y Apellido", value=p["nombre"], key=f"mwf_nom_{idx_p}")
           edit_grupo = st.selectbox(
               "Grupo Asignado",
               ["Grupo 1 (Lunes, Miércoles, Viernes)", "Grupo 2 (Martes, Jueves, Sábados)"],
               index=0,
-              key=f"edit_grupo_mwf_{nombre_key}"
+              key=f"mwf_grp_{idx_p}"
           )
-          edit_turno = st.selectbox("Turno Habitual", TURNOS_DISPONIBLES, index=TURNOS_DISPONIBLES.index(p["turno"]), key=f"edit_turno_mwf_{nombre_key}")
-          edit_maps = st.text_input("Enlace de Google Maps", value=p.get("maps_link", ""), key=f"edit_maps_mwf_{nombre_key}")
+          edit_turno = st.selectbox("Turno Habitual", TURNOS_DISPONIBLES, index=TURNOS_DISPONIBLES.index(p["turno"]), key=f"mwf_trn_{idx_p}")
+          edit_maps = st.text_input("Enlace de Google Maps", value=p.get("maps_link", ""), key=f"mwf_map_{idx_p}")
 
           st.markdown("---")
           st.markdown("**📞 Teléfonos y Contactos:**")
@@ -489,17 +492,16 @@ elif menu == "Gestionar Pacientes":
             cols_c = st.columns([3, 3, 1])
             cols_c[0].write(f"📞 {contacto['numero']}")
             cols_c[1].write(f"({contacto['relacion']})")
-            if cols_c[2].button("🗑️", key=f"del_c_mwf_{nombre_key}_{idx_c}", use_container_width=True):
+            if cols_c[2].button("🗑️", key=f"mwf_del_c_{idx_p}_{idx_c}", use_container_width=True):
               contactos.pop(idx_c)
               p["contactos"] = contactos
               guardar_pacientes(pacientes_db)
               st.rerun()
 
-          st.markdown("➕ *Agregar otro contacto:*")
-          nuevo_num = st.text_input("Número de teléfono", key=f"new_num_mwf_{nombre_key}")
-          nueva_rel = st.text_input("Relación (Ej: Paciente, Hijo/a, Cuidador)", key=f"new_rel_mwf_{nombre_key}")
+          nuevo_num = st.text_input("Número de teléfono", key=f"mwf_new_num_{idx_p}")
+          nueva_rel = st.text_input("Relación (Ej: Paciente, Hijo/a, Cuidador)", key=f"mwf_new_rel_{idx_p}")
           
-          if st.button("➕ Añadir este Contacto", key=f"add_c_btn_mwf_{nombre_key}", use_container_width=True):
+          if st.button("➕ Añadir este Contacto", key=f"mwf_add_btn_{idx_p}", use_container_width=True):
             if nuevo_num.strip():
               contactos.append({"numero": nuevo_num.strip(), "relacion": nueva_rel.strip() if nueva_rel.strip() else "Contacto"})
               p["contactos"] = contactos
@@ -511,7 +513,7 @@ elif menu == "Gestionar Pacientes":
 
           st.markdown("---")
           col_save, col_del = st.columns([5, 1])
-          if col_save.button("💾 Guardar Cambios", key=f"save_mwf_{nombre_key}", type="primary", use_container_width=True):
+          if col_save.button("💾 Guardar Cambios", key=f"mwf_save_{idx_p}", type="primary", use_container_width=True):
             p["nombre"] = edit_nombre.strip()
             p["turno"] = edit_turno
             p["maps_link"] = edit_maps.strip()
@@ -527,7 +529,7 @@ elif menu == "Gestionar Pacientes":
             st.success("¡Cambios guardados con éxito!")
             st.rerun()
 
-          if col_del.button("🗑️", key=f"del_mwf_{nombre_key}", use_container_width=True, help="Eliminar paciente"):
+          if col_del.button("🗑️", key=f"mwf_del_p_{idx_p}", use_container_width=True, help="Eliminar paciente"):
             grupo_MWF.remove(p)
             pacientes_db["MWF"] = grupo_MWF
             guardar_pacientes(pacientes_db)
@@ -535,21 +537,20 @@ elif menu == "Gestionar Pacientes":
 
     st.markdown("---")
     st.subheader("Grupo 2 (Martes, Jueves, Sábados)")
-    for p in list(grupo_TTS):
-      nombre_key = p['nombre'].replace(" ", "_").replace(".", "_")
+    for idx_p, p in enumerate(list(grupo_TTS)):
       with st.container(border=True):
         st.markdown(f"**{p['nombre']}** — *Turno: {p['turno']}*")
         
         with st.expander("✏️ Editar"):
-          edit_nombre = st.text_input("Nombre y Apellido", value=p["nombre"], key=f"edit_nom_tts_{nombre_key}")
+          edit_nombre = st.text_input("Nombre y Apellido", value=p["nombre"], key=f"tts_nom_{idx_p}")
           edit_grupo = st.selectbox(
               "Grupo Asignado",
               ["Grupo 1 (Lunes, Miércoles, Viernes)", "Grupo 2 (Martes, Jueves, Sábados)"],
               index=1,
-              key=f"edit_grupo_tts_{nombre_key}"
+              key=f"tts_grp_{idx_p}"
           )
-          edit_turno = st.selectbox("Turno Habitual", TURNOS_DISPONIBLES, index=TURNOS_DISPONIBLES.index(p["turno"]), key=f"edit_turno_tts_{nombre_key}")
-          edit_maps = st.text_input("Enlace de Google Maps", value=p.get("maps_link", ""), key=f"edit_maps_tts_{nombre_key}")
+          edit_turno = st.selectbox("Turno Habitual", TURNOS_DISPONIBLES, index=TURNOS_DISPONIBLES.index(p["turno"]), key=f"tts_trn_{idx_p}")
+          edit_maps = st.text_input("Enlace de Google Maps", value=p.get("maps_link", ""), key=f"tts_map_{idx_p}")
 
           st.markdown("---")
           st.markdown("**📞 Teléfonos y Contactos:**")
@@ -559,17 +560,16 @@ elif menu == "Gestionar Pacientes":
             cols_c = st.columns([3, 3, 1])
             cols_c[0].write(f"📞 {contacto['numero']}")
             cols_c[1].write(f"({contacto['relacion']})")
-            if cols_c[2].button("🗑️", key=f"del_c_tts_{nombre_key}_{idx_c}", use_container_width=True):
+            if cols_c[2].button("🗑️", key=f"tts_del_c_{idx_p}_{idx_c}", use_container_width=True):
               contactos.pop(idx_c)
               p["contactos"] = contactos
               guardar_pacientes(pacientes_db)
               st.rerun()
 
-          st.markdown("➕ *Agregar otro contacto:*")
-          nuevo_num = st.text_input("Número de teléfono", key=f"new_num_tts_{nombre_key}")
-          nueva_rel = st.text_input("Relación (Ej: Paciente, Hijo/a, Cuidador)", key=f"new_rel_tts_{nombre_key}")
+          nuevo_num = st.text_input("Número de teléfono", key=f"tts_new_num_{idx_p}")
+          nueva_rel = st.text_input("Relación (Ej: Paciente, Hijo/a, Cuidador)", key=f"tts_new_rel_{idx_p}")
           
-          if st.button("➕ Añadir este Contacto", key=f"add_c_btn_tts_{nombre_key}", use_container_width=True):
+          if st.button("➕ Añadir este Contacto", key=f"tts_add_btn_{idx_p}", use_container_width=True):
             if nuevo_num.strip():
               contactos.append({"numero": nuevo_num.strip(), "relacion": nueva_rel.strip() if nueva_rel.strip() else "Contacto"})
               p["contactos"] = contactos
@@ -581,7 +581,7 @@ elif menu == "Gestionar Pacientes":
 
           st.markdown("---")
           col_save, col_del = st.columns([5, 1])
-          if col_save.button("💾 Guardar Cambios", key=f"save_tts_{nombre_key}", type="primary", use_container_width=True):
+          if col_save.button("💾 Guardar Cambios", key=f"tts_save_{idx_p}", type="primary", use_container_width=True):
             p["nombre"] = edit_nombre.strip()
             p["turno"] = edit_turno
             p["maps_link"] = edit_maps.strip()
@@ -597,7 +597,7 @@ elif menu == "Gestionar Pacientes":
             st.success("¡Cambios guardados con éxito!")
             st.rerun()
 
-          if col_del.button("🗑️", key=f"del_tts_{nombre_key}", use_container_width=True, help="Eliminar paciente"):
+          if col_del.button("🗑️", key=f"tts_del_p_{idx_p}", use_container_width=True, help="Eliminar paciente"):
             grupo_TTS.remove(p)
             pacientes_db["TTS"] = grupo_TTS
             guardar_pacientes(pacientes_db)
@@ -605,24 +605,25 @@ elif menu == "Gestionar Pacientes":
 
   with pestana2:
     st.subheader("Agregar un nuevo paciente")
-    nuevo_nombre = st.text_input("Nombre y Apellido del Paciente")
+    nuevo_nombre = st.text_input("Nombre y Apellido del Paciente", key="nuevo_nombre_paciente")
     nuevo_grupo = st.selectbox(
         "Selecciona el Grupo",
         [
             "Grupo 1 (Lunes, Miércoles, Viernes)",
             "Grupo 2 (Martes, Jueves, Sábados)",
         ],
+        key="nuevo_grupo_paciente"
     )
     nuevo_turno = st.selectbox(
-        "Horario de Turno Habitual", TURNOS_DISPONIBLES
+        "Horario de Turno Habitual", TURNOS_DISPONIBLES, key="nuevo_turno_paciente"
     )
-    nuevo_maps = st.text_input("Enlace de Google Maps (Opcional)")
-    nuevo_tel = st.text_input("Número de Teléfono Principal (Opcional)")
-    nueva_rel_tel = st.text_input("Relación de este teléfono (Ej: Paciente, Hijo/a)", value="Paciente")
+    nuevo_maps = st.text_input("Enlace de Google Maps (Opcional)", key="nuevo_maps_paciente")
+    nuevo_tel = st.text_input("Número de Teléfono Principal (Opcional)", key="nuevo_tel_paciente")
+    nueva_rel_tel = st.text_input("Relación de este teléfono (Ej: Paciente, Hijo/a)", value="Paciente", key="nuevo_rel_paciente")
 
     st.markdown("")
     if st.button(
-        "➕ Guardar Nuevo Paciente", type="primary", use_container_width=True
+        "➕ Guardar Nuevo Paciente", type="primary", use_container_width=True, key="btn_guardar_nuevo_paciente"
     ):
       if nuevo_nombre.strip() == "":
         st.error("Por favor, escribe el nombre del paciente.")
@@ -679,11 +680,11 @@ elif menu == "Resumen Mensual":
     st.subheader(f"💰 TOTAL GENERAL ACUMULADO: ${total_mes:,}")
 
     st.markdown("")
-    excel_bytes = generar_excel_bytes(datos_validos)
+    excel_bytes_mes = generar_excel_bytes(datos_validos, es_diario=False)
     st.download_button(
-        label="📊 Descargar Resumen en Excel (.xlsx)",
-        data=excel_bytes,
-        file_name="control_dialisis_resumen.xlsx",
+        label="📊 Descargar Resumen Mensual en Excel (.xlsx)",
+        data=excel_bytes_mes,
+        file_name="control_dialisis_resumen_mensual.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         type="primary",
         use_container_width=True,
