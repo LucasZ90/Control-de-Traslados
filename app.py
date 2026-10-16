@@ -71,108 +71,121 @@ DEFAULT_TTS = [
 
 
 def cargar_pacientes_db():
-  response = supabase.table("pacientes").select("*").execute()
-  data = response.data
-  if not data:
-    # Si la tabla está vacía, cargamos los valores por defecto
-    for p in DEFAULT_MWF:
-      supabase.table("pacientes").insert({
-          "grupo": "MWF",
-          "nombre": p["nombre"],
-          "turno": p["turno"],
-          "maps_link": p["maps_link"],
-          "contactos": p["contactos"],
-      }).execute()
-    for p in DEFAULT_TTS:
-      supabase.table("pacientes").insert({
-          "grupo": "TTS",
-          "nombre": p["nombre"],
-          "turno": p["turno"],
-          "maps_link": p["maps_link"],
-          "contactos": p["contactos"],
-      }).execute()
+  try:
     response = supabase.table("pacientes").select("*").execute()
     data = response.data
+    if not data:
+      for p in DEFAULT_MWF:
+        supabase.table("pacientes").insert({
+            "grupo": "MWF",
+            "nombre": p["nombre"],
+            "turno": p["turno"],
+            "maps_link": p["maps_link"],
+            "contactos": p["contactos"],
+        }).execute()
+      for p in DEFAULT_TTS:
+        supabase.table("pacientes").insert({
+            "grupo": "TTS",
+            "nombre": p["nombre"],
+            "turno": p["turno"],
+            "maps_link": p["maps_link"],
+            "contactos": p["contactos"],
+        }).execute()
+      response = supabase.table("pacientes").select("*").execute()
+      data = response.data
 
-  mwf = [p for p in data if p["grupo"] == "MWF"]
-  tts = [p for p in data if p["grupo"] == "TTS"]
-  return {"MWF": mwf, "TTS": tts}
+    mwf = [p for p in data if p["grupo"] == "MWF"]
+    tts = [p for p in data if p["grupo"] == "TTS"]
+    return {"MWF": mwf, "TTS": tts}
+  except Exception:
+    return {"MWF": DEFAULT_MWF, "TTS": DEFAULT_TTS}
 
 
 def guardar_paciente_db(p_id, grupo, nombre, turno, maps_link, contactos):
-  if p_id:
-    supabase.table("pacientes").update({
-        "grupo": grupo,
-        "nombre": nombre,
-        "turno": turno,
-        "maps_link": maps_link,
-        "contactos": contactos,
-    }).eq("id", p_id).execute()
-  else:
-    supabase.table("pacientes").insert({
-        "grupo": grupo,
-        "nombre": nombre,
-        "turno": turno,
-        "maps_link": maps_link,
-        "contactos": contactos,
-    }).execute()
+  try:
+    if p_id:
+      supabase.table("pacientes").update({
+          "grupo": grupo,
+          "nombre": nombre,
+          "turno": turno,
+          "maps_link": maps_link,
+          "contactos": contactos,
+      }).eq("id", p_id).execute()
+    else:
+      supabase.table("pacientes").insert({
+          "grupo": grupo,
+          "nombre": nombre,
+          "turno": turno,
+          "maps_link": maps_link,
+          "contactos": contactos,
+      }).execute()
+  except Exception as e:
+    st.error(f"Error al guardar paciente en la base de datos: {e}")
 
 
 def eliminar_paciente_db(p_id):
-  supabase.table("pacientes").delete().eq("id", p_id).execute()
+  try:
+    supabase.table("pacientes").delete().eq("id", p_id).execute()
+  except Exception as e:
+    st.error(f"Error al eliminar paciente: {e}")
 
 
 def cargar_registros_db():
-  response = supabase.table("registros").select("*").execute()
-  data = response.data
-  # Reorganizar en formato de diccionario por fecha
-  datos = {}
-  for row in data:
-    f_str = row["fecha"]
-    try:
-      if datetime.strptime(f_str, "%d/%m/%Y").date() >= date(2026, 10, 14):
-        if f_str not in datos:
-          datos[f_str] = {}
-        datos[f_str][row["nombre"]] = {
-            "ida": row["ida"],
-            "vuelta": row["vuelta"],
-            "listo": row["listo"],
-            "estado": row["estado"],
-            "valor": row["valor"],
-        }
-    except ValueError:
-      pass
-  return datos
+  try:
+    response = supabase.table("registros").select("*").execute()
+    data = response.data
+    datos = {}
+    if data:
+      for row in data:
+        f_str = row["fecha"]
+        try:
+          if datetime.strptime(f_str, "%d/%m/%Y").date() >= date(2026, 10, 14):
+            if f_str not in datos:
+              datos[f_str] = {}
+            datos[f_str][row["nombre"]] = {
+                "ida": row["ida"],
+                "vuelta": row["vuelta"],
+                "listo": row["listo"],
+                "estado": row["estado"],
+                "valor": row["valor"],
+            }
+        except ValueError:
+          pass
+    return datos
+  except Exception:
+    return {}
 
 
 def guardar_registro_db(fecha_str, nombre, info):
-  # Verificar si ya existe el registro para esa fecha y paciente
-  existing = (
-      supabase.table("registros")
-      .select("id")
-      .eq("fecha", fecha_str)
-      .eq("nombre", nombre)
-      .execute()
-  )
-  if existing.data:
-    row_id = existing.data[0]["id"]
-    supabase.table("registros").update({
-        "ida": info["ida"],
-        "vuelta": info["vuelta"],
-        "listo": info["listo"],
-        "estado": info["estado"],
-        "valor": info["valor"],
-    }).eq("id", row_id).execute()
-  else:
-    supabase.table("registros").insert({
-        "fecha": fecha_str,
-        "nombre": nombre,
-        "ida": info["ida"],
-        "vuelta": info["vuelta"],
-        "listo": info["listo"],
-        "estado": info["estado"],
-        "valor": info["valor"],
-    }).execute()
+  try:
+    existing = (
+        supabase.table("registros")
+        .select("id")
+        .eq("fecha", fecha_str)
+        .eq("nombre", nombre)
+        .execute()
+    )
+    if existing.data:
+      row_id = existing.data[0]["id"]
+      supabase.table("registros").update({
+          "ida": info["ida"],
+          "vuelta": info["vuelta"],
+          "listo": info["listo"],
+          "estado": info["estado"],
+          "valor": info["valor"],
+      }).eq("id", row_id).execute()
+    else:
+      supabase.table("registros").insert({
+          "fecha": fecha_str,
+          "nombre": nombre,
+          "ida": info["ida"],
+          "vuelta": info["vuelta"],
+          "listo": info["listo"],
+          "estado": info["estado"],
+          "valor": info["valor"],
+      }).execute()
+  except Exception as e:
+    st.error(f"Error al guardar registro: {e}")
 
 
 def actualizar_valores_paciente(info):
