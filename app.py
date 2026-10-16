@@ -23,7 +23,7 @@ except Exception as e:
   )
   st.stop()
 
-# --- ESTILOS VISUALES COMPACTOS ---
+# --- ESTILOS VISUALES Y FORZADO HORIZONTAL PARA MÓVIL ---
 st.markdown("""
     <style>
     .stApp {
@@ -41,11 +41,19 @@ st.markdown("""
         color: #E2E8F0;
         font-family: 'Inter', sans-serif;
     }
+    /* Estilo general de botones compactos */
     div.stButton > button {
         border-radius: 6px;
         font-weight: 600;
         padding: 0.3rem 0.2rem;
         font-size: 0.8rem;
+        width: 100%;
+    }
+    /* Forzar diseño horizontal en contenedor de botones para celulares */
+    .row-widget.stHorizontal {
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: center;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -484,7 +492,7 @@ if menu == "Registrar / Actualizar Viajes":
       )
       st.metric(label="👥 Pacientes Pendientes Hoy", value=pendientes_totales)
 
-      # --- RENDERIZAR TURNOS CON TARJETAS COMPACTAS Y BOTONES EN UNA LÍNEA ---
+      # --- RENDERIZAR TURNOS CON TARJETAS COMPACTAS Y BOTONES FORZADOS HORIZONTALES ---
       for turno_turno, titulo_turno in [
           ("05:40", "⏰ Turno 05:40 AM"),
           ("08:40", "⏰ Turno 08:40 AM"),
@@ -550,8 +558,10 @@ if menu == "Registrar / Actualizar Viajes":
 
             st.markdown("")
 
-            # --- 3 BOTONES EN UNA SOLA LÍNEA HORIZONTAL ---
-            col_b1, col_b2, col_b3 = st.columns([2.5, 2.5, 2])
+            # --- 3 BOTONES EN UNA SOLA LÍNEA HORIZONTAL FORZADA ---
+            col_b1, col_b2, col_b3 = st.columns(
+                [3, 3, 2], gap="small"
+            )
 
             label_ida = "✅ Ida" if reg_ida else "❌ Ida"
             if col_b1.button(
