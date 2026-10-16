@@ -44,8 +44,8 @@ st.markdown("""
     div.stButton > button {
         border-radius: 6px;
         font-weight: 600;
-        padding: 0.3rem 0.5rem;
-        font-size: 0.85rem;
+        padding: 0.3rem 0.2rem;
+        font-size: 0.8rem;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -484,7 +484,7 @@ if menu == "Registrar / Actualizar Viajes":
       )
       st.metric(label="👥 Pacientes Pendientes Hoy", value=pendientes_totales)
 
-      # --- RENDERIZAR TURNOS CON TARJETAS COMPACTAS ---
+      # --- RENDERIZAR TURNOS CON TARJETAS COMPACTAS Y BOTONES EN UNA LÍNEA ---
       for turno_turno, titulo_turno in [
           ("05:40", "⏰ Turno 05:40 AM"),
           ("08:40", "⏰ Turno 08:40 AM"),
@@ -510,8 +510,8 @@ if menu == "Registrar / Actualizar Viajes":
           is_listo = info_paciente.get("listo", False)
 
           with st.container(border=True):
-            # Cabecera de la tarjeta: Nombre y botón icono de editar al lado
-            col_h1, col_h2 = st.columns([10, 1])
+            # Cabecera: Nombre y botón ✏️ al lado exacto en una misma línea horizontal
+            col_h1, col_h2 = st.columns([8, 1])
             estado_icono = (
                 "🟢"
                 if (reg_ida and reg_vuelta)
@@ -527,7 +527,7 @@ if menu == "Registrar / Actualizar Viajes":
                 help="Editar datos del paciente",
             )
 
-            # Información de mapas y contactos en una sola línea discreta
+            # Información de mapas y contactos en línea compacta
             maps_url = p.get("maps_link", "").strip()
             contactos = [c for c in p.get("contactos", []) if c.get("numero")]
             partes_info = []
@@ -548,11 +548,13 @@ if menu == "Registrar / Actualizar Viajes":
                 unsafe_allow_html=True,
             )
 
-            # Botones de acción en una misma línea horizontal compacta
-            col_btn1, col_btn2, col_btn3 = st.columns(3)
+            st.markdown("")
+
+            # --- 3 BOTONES EN UNA SOLA LÍNEA HORIZONTAL ---
+            col_b1, col_b2, col_b3 = st.columns([2.5, 2.5, 2])
 
             label_ida = "✅ Ida" if reg_ida else "❌ Ida"
-            if col_btn1.button(
+            if col_b1.button(
                 label_ida,
                 key=f"t_{turno_turno}_i_{p_id}_{fecha_str}",
                 use_container_width=True,
@@ -563,7 +565,7 @@ if menu == "Registrar / Actualizar Viajes":
               st.rerun()
 
             label_vuelta = "✅ Vuelta" if reg_vuelta else "❌ Vuelta"
-            if col_btn2.button(
+            if col_b2.button(
                 label_vuelta,
                 key=f"t_{turno_turno}_v_{p_id}_{fecha_str}",
                 use_container_width=True,
@@ -574,8 +576,8 @@ if menu == "Registrar / Actualizar Viajes":
               st.rerun()
 
             if not is_listo:
-              if col_btn3.button(
-                  "🏁 Finalizar",
+              if col_b3.button(
+                  "🏁 Fin",
                   key=f"t_{turno_turno}_f_{p_id}_{fecha_str}",
                   use_container_width=True,
               ):
@@ -583,8 +585,8 @@ if menu == "Registrar / Actualizar Viajes":
                 guardar_registro_db(fecha_str, nombre, info_paciente)
                 st.rerun()
             else:
-              if col_btn3.button(
-                  "🔄 Reabrir",
+              if col_b3.button(
+                  "🔄 Abrir",
                   key=f"t_{turno_turno}_r_{p_id}_{fecha_str}",
                   use_container_width=True,
               ):
