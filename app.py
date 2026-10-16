@@ -23,7 +23,7 @@ except Exception as e:
   )
   st.stop()
 
-# --- ESTILOS VISUALES Y FORZADO HORIZONTAL PARA MÓVIL ---
+# --- ESTILOS VISUALES PARA FORZAR HORIZONTALIDAD REAL EN MÓVIL ---
 st.markdown("""
     <style>
     .stApp {
@@ -41,19 +41,19 @@ st.markdown("""
         color: #E2E8F0;
         font-family: 'Inter', sans-serif;
     }
-    /* Estilo general de botones compactos */
+    /* Estilo de botones compactos */
     div.stButton > button {
         border-radius: 6px;
         font-weight: 600;
-        padding: 0.3rem 0.2rem;
+        padding: 0.3rem 0.1rem;
         font-size: 0.8rem;
         width: 100%;
     }
-    /* Forzar diseño horizontal en contenedor de botones para celulares */
-    .row-widget.stHorizontal {
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        align-items: center;
+    /* Forzar que los botones de las columnas queden en línea horizontal estricta */
+    [data-testid="column"] {
+        width: fit-content !important;
+        flex: 1 !important;
+        min-width: 0 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -492,7 +492,7 @@ if menu == "Registrar / Actualizar Viajes":
       )
       st.metric(label="👥 Pacientes Pendientes Hoy", value=pendientes_totales)
 
-      # --- RENDERIZAR TURNOS CON TARJETAS COMPACTAS Y BOTONES FORZADOS HORIZONTALES ---
+      # --- RENDERIZAR TURNOS CON TARJETAS COMPACTAS ---
       for turno_turno, titulo_turno in [
           ("05:40", "⏰ Turno 05:40 AM"),
           ("08:40", "⏰ Turno 08:40 AM"),
@@ -518,18 +518,20 @@ if menu == "Registrar / Actualizar Viajes":
           is_listo = info_paciente.get("listo", False)
 
           with st.container(border=True):
-            # Cabecera: Nombre y botón ✏️ al lado exacto en una misma línea horizontal
-            col_h1, col_h2 = st.columns([8, 1])
+            # Cabecera: Nombre y botón ✏️ al lado exacto usando una tabla HTML integrada limpia
             estado_icono = (
                 "🟢"
                 if (reg_ida and reg_vuelta)
                 else ("🟡" if (reg_ida or reg_vuelta or is_listo) else "⚪")
             )
-            col_h1.markdown(
-                f"**{estado_icono} {nombre}**"
-                f" {' *[Finalizado]*' if is_listo else ''}"
+            finalizado_txt = " *[Finalizado]*" if is_listo else ""
+
+            # Creamos un contenedor con columnas nativas para Nombre y Botón de Editar al lado
+            col_nombre, col_edit = st.columns([10, 1])
+            col_nombre.markdown(
+                f"**{estado_icono} {nombre}**{finalizado_txt}"
             )
-            editar_click = col_h2.button(
+            editar_click = col_edit.button(
                 "✏️",
                 key=f"btn_edit_icon_{p_id}_{fecha_str}",
                 help="Editar datos del paciente",
@@ -558,10 +560,9 @@ if menu == "Registrar / Actualizar Viajes":
 
             st.markdown("")
 
-            # --- 3 BOTONES EN UNA SOLA LÍNEA HORIZONTAL FORZADA ---
-            col_b1, col_b2, col_b3 = st.columns(
-                [3, 3, 2], gap="small"
-            )
+            # --- BOTONES IDA, VUELTA Y FIN FORZADOS EN UNA SOLA LÍNEA HORIZONTAL ---
+            # Usamos anchos proporcionales idénticos a los enlaces para mantener la simetría horizontal exacta
+            col_b1, col_b2, col_b3 = st.columns([2.2, 2.2, 1.6])
 
             label_ida = "✅ Ida" if reg_ida else "❌ Ida"
             if col_b1.button(
