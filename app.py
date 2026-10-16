@@ -70,6 +70,7 @@ DEFAULT_TTS = [
 ]
 
 
+@st.cache_data(ttl=600)
 def cargar_pacientes_db():
   try:
     response = supabase.table("pacientes").select("*").execute()
@@ -102,7 +103,7 @@ def cargar_pacientes_db():
 def guardar_paciente_db(p_id, grupo, nombre, turno, maps_link, contactos):
   try:
     if p_id:
-      res = supabase.table("pacientes").update({
+      supabase.table("pacientes").update({
           "grupo": grupo,
           "nombre": nombre,
           "turno": turno,
@@ -110,13 +111,14 @@ def guardar_paciente_db(p_id, grupo, nombre, turno, maps_link, contactos):
           "contactos": contactos,
       }).eq("id", p_id).execute()
     else:
-      res = supabase.table("pacientes").insert({
+      supabase.table("pacientes").insert({
           "grupo": grupo,
           "nombre": nombre,
           "turno": turno,
           "maps_link": maps_link,
           "contactos": contactos,
       }).execute()
+    st.cache_data.clear()
     return True, None
   except Exception as e:
     return False, str(e)
@@ -126,11 +128,13 @@ def eliminar_paciente_db(p_id):
   try:
     if p_id:
       supabase.table("pacientes").delete().eq("id", p_id).execute()
+    st.cache_data.clear()
     return True, None
   except Exception as e:
     return False, str(e)
 
 
+@st.cache_data(ttl=300)
 def cargar_registros_db():
   try:
     response = supabase.table("registros").select("*").execute()
@@ -182,6 +186,7 @@ def guardar_registro_db(fecha_str, nombre, info):
       supabase.table("registros").update(payload).eq("id", row_id).execute()
     else:
       supabase.table("registros").insert(payload).execute()
+    st.cache_data.clear()
   except Exception as e:
     st.error(f"Error al guardar registro: {e}")
 
@@ -191,6 +196,7 @@ def eliminar_registro_db(fecha_str, nombre):
     supabase.table("registros").delete().eq("fecha", fecha_str).eq(
         "nombre", nombre
     ).execute()
+    st.cache_data.clear()
   except Exception as e:
     st.error(f"Error al eliminar registro: {e}")
 
@@ -412,7 +418,6 @@ if menu == "Registrar / Actualizar Viajes":
         for p in todos_pacientes:
           p_nombre = p["nombre"]
           p_id = p.get("id")
-          # Por defecto se marca si ya está en los registros del día o si pertenece al grupo sugerido del día
           sugerido = (p_nombre in datos[fecha_str]) or (
               p.get("grupo") == grupo_sugerido
           )
@@ -424,7 +429,6 @@ if menu == "Registrar / Actualizar Viajes":
               key=f"chk_sel_{fecha_str}_{p_id}",
           )
 
-          # Turno asignado para este día en específico
           turno_actual_dia = (
               datos[fecha_str][p_nombre].get(
                   "turno_dia", p.get("turno", "05:40")
@@ -465,12 +469,6 @@ if menu == "Registrar / Actualizar Viajes":
               eliminar_registro_db(fecha_str, p_nombre)
 
       pacientes_hoy_dict = datos.get(fecha_str, {})
-      pacientes_hoy_lista = [
-          p
-          for p in todos_pacientes
-          if p["nombre"] in pacientes_hoy_dict
-          and pacientes_hoy_dict[p["nombre"]].get("turno_dia") == "05:40"
-      ]
 
       def esta_finalizado(p_nombre):
         info = pacientes_hoy_dict.get(p_nombre, {})
