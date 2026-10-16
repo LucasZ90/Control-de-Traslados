@@ -162,45 +162,6 @@ def cargar_registros_db():
     return {}
 
 
-def guardar_registro_db(fecha_str, nombre, info):
-  try:
-    existing = (
-        supabase.table("registros")
-        .select("id")
-        .eq("fecha", fecha_str)
-        .eq("nombre", nombre)
-        .execute()
-    )
-    payload = {
-        "fecha": fecha_str,
-        "nombre": nombre,
-        "ida": info["ida"],
-        "vuelta": info["vuelta"],
-        "listo": info["listo"],
-        "estado": info["estado"],
-        "valor": info["valor"],
-        "turno_dia": info.get("turno_dia", "05:40"),
-    }
-    if existing.data:
-      row_id = existing.data[0]["id"]
-      supabase.table("registros").update(payload).eq("id", row_id).execute()
-    else:
-      supabase.table("registros").insert(payload).execute()
-    st.cache_data.clear()
-  except Exception as e:
-    st.error(f"Error al guardar registro: {e}")
-
-
-def eliminar_registro_db(fecha_str, nombre):
-  try:
-    supabase.table("registros").delete().eq("fecha", fecha_str).eq(
-        "nombre", nombre
-    ).execute()
-    st.cache_data.clear()
-  except Exception as e:
-    st.error(f"Error al eliminar registro: {e}")
-
-
 def actualizar_valores_paciente(info):
   reg_ida = info.get("ida", False)
   reg_vuelta = info.get("vuelta", False)
@@ -407,179 +368,72 @@ if menu == "Registrar / Actualizar Viajes":
       if fecha_str not in datos:
         datos[fecha_str] = {}
 
-      # --- CONFIGURACIÓN DINÁMICA DE PACIENTES PARA ESTE DÍA ---
-      with st.expander(
-          "⚙️ Seleccionar pacientes y turnos de hoy", expanded=False
-      ):
-        st.write(
-            "Marca los pacientes que viajan hoy y ajusta su turno si es"
-            " necesario:"
+      # --- FORMULARIO DE CARGA MASIVA CON UN SOLO BOTÓN DE GUARDADO ---
+      with st.form(key=f"form_dia_{fecha_str}"):
+        st.markdown(
+            "### ⚙️ Configuración del Día (Pacientes, Turnos y Viajes)"
         )
+        st.write(
+            "Selecciona quién viaja, ajusta su turno, marca las idas/vueltas y"
+            " presiona Guardar al final."
+        )
+
+        form_estados = {}
+
         for p in todos_pacientes:
           p_nombre = p["nombre"]
           p_id = p.get("id")
-          sugerido = (p_nombre in datos[fecha_str]) or (
-              p.get("grupo") == grupo_sugerido
-          )
+          info_existente = datos[fecha_str].get(p_nombre, {})
+          ya_registrado = p_nombre in datos[fecha_str]
+          sugerido = ya_registrado or (p.get("grupo") == grupo_sugerido)
 
-          cols_sel = st.columns([3, 2])
-          seleccionado = cols_sel[0].checkbox(
-              f"{p_nombre} ({p.get('turno','05:40')})",
-              value=sugerido,
-              key=f"chk_sel_{fecha_str}_{p_id}",
-          )
+          with st.container(border=True):
+            st.markdown(f"**{p_nombre}** *(Habitual: {p.get('turno','05:40')})*")
 
-          turno_actual_dia = (
-              datos[fecha_str][p_nombre].get(
-                  "turno_dia", p.get("turno", "05:40")
-              )
-              if p_nombre in datos[fecha_str]
-              else p.get("turno", "05:40")
-          )
-          idx_turno = (
-              TURNOS_DISPONIBLES.index(turno_actual_dia)
-              if turno_actual_dia in TURNOS_DISPONIBLES
-              else 0
-          )
+            cols_f = st.columns([2, 2, 2, 2])
+            chk_viaja = cols_f[0].checkbox(
+                "Viaja hoy", value=sugerido, key=f"f_viaja_{fecha_str}_{p_id}"
+            )
 
-          turno_elegido = cols_sel[1].selectbox(
-              "Turno hoy",
-              TURNOS_DISPONIBLES,
-              index=idx_turno,
-              key=f"sel_trn_{fecha_str}_{p_id}",
-              label_visibility="collapsed",
-          )
+            turno_def = info_existente.get(
+                "turno_dia", p.get("turno", "05:40")
+            )
+            idx_t = (
+                TURNOS_DISPONIBLES.index(turno_def)
+                if turno_def in TURNOS_DISPONIBLES
+                else 0
+            )
+            sel_turno = cols_f[1].selectbox(
+                "Turno",
+                TURNOS_DISPONIBLES,
+                index=idx_t,
+                key=f"f_turno_{fecha_str}_{p_id}",
+            )
 
-          if seleccionado:
-            if p_nombre not in datos[fecha_str]:
-              datos[fecha_str][p_nombre] = {
-                  "ida": False,
-                  "vuelta": False,
-                  "listo": False,
-                  "estado": "Ausente (No viajó)",
-                  "valor": 0,
-                  "turno_dia": turno_elegido,
-              }
-            else:
-              datos[fecha_str][p_nombre]["turno_dia"] = turno_elegido
-            guardar_registro_db(fecha_str, p_nombre, datos[fecha_str][p_nombre])
-          else:
-            if p_nombre in datos[fecha_str]:
-              del datos[fecha_str][p_nombre]
-              eliminar_registro_db(fecha_str, p_nombre)
+            chk_ida = cols_f[2].checkbox(
+                "Ida",
+                value=info_existente.get("ida", False),
+                key=f"f_ida_{fecha_str}_{p_id}",
+            )
+            chk_vuelta = cols_f[3].checkbox(
+                "Vuelta",
+                value=info_existente.get("vuelta", False),
+                key=f"f_vuelta_{fecha_str}_{p_id}",
+            )
 
-      pacientes_hoy_dict = datos.get(fecha_str, {})
+            form_estados[p_nombre] = {
+                "viaja": chk_viaja,
+                "turno_dia": sel_turno,
+                "ida": chk_ida,
+                "vuelta": chk_vuelta,
+            }
 
-      def esta_finalizado(p_nombre):
-        info = pacientes_hoy_dict.get(p_nombre, {})
-        return (info.get("ida", False) and info.get("vuelta", False)) or info.get(
-            "listo", False
-        )
-
-      pendientes_totales = sum(
-          1 for nom in pacientes_hoy_dict if not esta_finalizado(nom)
-      )
-      st.metric(label="👥 Pacientes Pendientes Hoy", value=pendientes_totales)
-
-      # --- TURNO 05:40 AM ---
-      st.markdown("### ⏰ Turno 05:40 AM")
-      pacientes_t1 = [
-          p
-          for p in todos_pacientes
-          if p["nombre"] in pacientes_hoy_dict
-          and pacientes_hoy_dict[p["nombre"]].get("turno_dia", "05:40")
-          == "05:40"
-      ]
-
-      if not pacientes_t1:
-        st.write("*(Sin pacientes programados en este turno)*")
-
-      for p in pacientes_t1:
-        nombre = p["nombre"]
-        p_id = p["id"]
-        info_paciente = pacientes_hoy_dict[nombre]
-        reg_ida = info_paciente.get("ida", False)
-        reg_vuelta = info_paciente.get("vuelta", False)
-        is_listo = info_paciente.get("listo", False)
-
-        with st.container(border=True):
-          estado_icono = (
-              "🟢"
-              if (reg_ida and reg_vuelta)
-              else ("🟡" if (reg_ida or reg_vuelta or is_listo) else "⚪")
-          )
-          st.markdown(
-              f"**{estado_icono} {nombre}**"
-              f" {' *[Finalizado]*' if is_listo else ''}"
-          )
-
-          maps_url = p.get("maps_link", "").strip()
-          contactos = [c for c in p.get("contactos", []) if c.get("numero")]
-
-          partes_info = []
-          if maps_url:
-            partes_info.append(f"[📍 Ubicación]({maps_url})")
-          else:
-            partes_info.append("📍 *(Sin ubicación)*")
-
-          if contactos:
-            contactos_links = " | ".join([
-                f"[📞 {c['relacion']}](tel:{c['numero'].replace(' ', '').replace('-', '')})"
-                for c in contactos
-            ])
-            partes_info.append(contactos_links)
-          else:
-            partes_info.append("📞 *(Sin contacto)*")
-
-          st.markdown("  •  ".join(partes_info))
-
-          col_a, col_b = st.columns(2)
-
-          label_ida = "✅ Ida Realizada" if reg_ida else "❌ Ida Pendiente"
-          if col_a.button(
-              label_ida, key=f"t1_i_{p_id}_{fecha_str}", use_container_width=True
-          ):
-            info_paciente["ida"] = not reg_ida
-            actualizar_valores_paciente(info_paciente)
-            guardar_registro_db(fecha_str, nombre, info_paciente)
-            st.rerun()
-
-          label_vuelta = (
-              "✅ Vuelta Realizada" if reg_vuelta else "❌ Vuelta Pendiente"
-          )
-          if col_b.button(
-              label_vuelta,
-              key=f"t1_v_{p_id}_{fecha_str}",
-              use_container_width=True,
-          ):
-            info_paciente["vuelta"] = not reg_vuelta
-            actualizar_valores_paciente(info_paciente)
-            guardar_registro_db(fecha_str, nombre, info_paciente)
-            st.rerun()
-
-          col_f1, col_f2 = st.columns(2)
-          if not is_listo:
-            if col_f1.button(
-                "🏁 Finalizar Registro",
-                key=f"t1_f_{p_id}_{fecha_str}",
-                use_container_width=True,
-            ):
-              info_paciente["listo"] = True
-              guardar_registro_db(fecha_str, nombre, info_paciente)
-              st.rerun()
-          else:
-            if col_f1.button(
-                "🔄 Reabrir Registro",
-                key=f"t1_r_{p_id}_{fecha_str}",
-                use_container_width=True,
-            ):
-              info_paciente["listo"] = False
-              guardar_registro_db(fecha_str, nombre, info_paciente)
-              st.rerun()
-
-          with col_f2.expander("✏️ Editar Paciente"):
+          # Expandible opcional de edición de datos fijos del paciente
+          with st.expander(f"✏️ Editar datos fijos de {p_nombre}"):
             edit_nombre = st.text_input(
-                "Nombre y Apellido", value=p["nombre"], key=f"mwf_nom_{p_id}"
+                "Nombre y Apellido",
+                value=p["nombre"],
+                key=f"f_ed_nom_{p_id}",
             )
             edit_grupo = st.selectbox(
                 "Grupo Asignado",
@@ -588,7 +442,7 @@ if menu == "Registrar / Actualizar Viajes":
                     "Grupo 2 (Martes, Jueves, Sábados)",
                 ],
                 index=0 if p["grupo"] == "MWF" else 1,
-                key=f"mwf_grp_{p_id}",
+                key=f"f_ed_grp_{p_id}",
             )
             edit_turno = st.selectbox(
                 "Turno Habitual",
@@ -598,74 +452,16 @@ if menu == "Registrar / Actualizar Viajes":
                     if p["turno"] in TURNOS_DISPONIBLES
                     else 0
                 ),
-                key=f"mwf_trn_{p_id}",
+                key=f"f_ed_trn_{p_id}",
             )
             edit_maps = st.text_input(
                 "Enlace de Google Maps",
                 value=p.get("maps_link", ""),
-                key=f"mwf_map_{p_id}",
+                key=f"f_ed_map_{p_id}",
             )
 
-            st.markdown("---")
-            st.markdown("**📞 Teléfonos y Contactos:**")
-            contactos_actuales = p.get("contactos", [])
-            for idx_c, contacto in enumerate(contactos_actuales):
-              cols_c = st.columns([3, 3, 1])
-              cols_c[0].write(f"📞 {contacto['numero']}")
-              cols_c[1].write(f"({contacto['relacion']})")
-              if cols_c[2].button(
-                  "🗑️", key=f"mwf_del_c_{p_id}_{idx_c}", use_container_width=True
-              ):
-                contactos_actuales.pop(idx_c)
-                guardar_paciente_db(
-                    p_id,
-                    p["grupo"],
-                    p["nombre"],
-                    p["turno"],
-                    p["maps_link"],
-                    contactos_actuales,
-                )
-                st.rerun()
-
-            nuevo_num = st.text_input(
-                "Número de teléfono", key=f"mwf_new_num_{p_id}"
-            )
-            nueva_rel = st.text_input(
-                "Relación (Ej: Paciente, Hijo/a)", key=f"mwf_new_rel_{p_id}"
-            )
-
-            if st.button(
-                "➕ Añadir Contacto",
-                key=f"mwf_add_btn_{p_id}",
-                use_container_width=True,
-            ):
-              if nuevo_num.strip():
-                contactos_actuales.append({
-                    "numero": nuevo_num.strip(),
-                    "relacion": (
-                        nueva_rel.strip() if nueva_rel.strip() else "Contacto"
-                    ),
-                })
-                guardar_paciente_db(
-                    p_id,
-                    p["grupo"],
-                    p["nombre"],
-                    p["turno"],
-                    p["maps_link"],
-                    contactos_actuales,
-                )
-                st.success("¡Contacto añadido!")
-                st.rerun()
-              else:
-                st.error("Ingresa un número.")
-
-            st.markdown("---")
-            col_save, col_del = st.columns([4, 1])
-            if col_save.button(
-                "💾 Guardar Cambios",
-                key=f"mwf_save_{p_id}",
-                type="primary",
-                use_container_width=True,
+            if st.form_submit_button(
+                f"💾 Guardar cambios de {p_nombre}", use_container_width=True
             ):
               nuevo_grupo_val = "MWF" if "Grupo 1" in edit_grupo else "TTS"
               ok, err = guardar_paciente_db(
@@ -674,242 +470,110 @@ if menu == "Registrar / Actualizar Viajes":
                   edit_nombre.strip(),
                   edit_turno,
                   edit_maps.strip(),
-                  contactos_actuales,
+                  p.get("contactos", []),
               )
               if ok:
-                st.success("¡Guardado!")
+                st.success(f"¡Datos de {p_nombre} actualizados con éxito!")
                 st.rerun()
               else:
                 st.error(f"Error: {err}")
 
-            if col_del.button(
-                "🗑️",
-                key=f"mwf_del_p_{p_id}",
-                use_container_width=True,
-                help="Eliminar paciente",
-            ):
-              ok, err = eliminar_paciente_db(p_id)
-              if ok:
-                st.rerun()
-              else:
-                st.error(f"Error: {err}")
-
-      # --- TURNO 08:40 AM ---
-      st.markdown("### ⏰ Turno 08:40 AM")
-      pacientes_t2 = [
-          p
-          for p in todos_pacientes
-          if p["nombre"] in pacientes_hoy_dict
-          and pacientes_hoy_dict[p["nombre"]].get("turno_dia", "05:40")
-          == "08:40"
-      ]
-
-      if not pacientes_t2:
-        st.write("*(Sin pacientes programados en este turno)*")
-
-      for p in pacientes_t2:
-        nombre = p["nombre"]
-        p_id = p["id"]
-        info_paciente = pacientes_hoy_dict[nombre]
-        reg_ida = info_paciente.get("ida", False)
-        reg_vuelta = info_paciente.get("vuelta", False)
-        is_listo = info_paciente.get("listo", False)
-
-        with st.container(border=True):
-          estado_icono = (
-              "🟢"
-              if (reg_ida and reg_vuelta)
-              else ("🟡" if (reg_ida or reg_vuelta or is_listo) else "⚪")
-          )
-          st.markdown(
-              f"**{estado_icono} {nombre}**"
-              f" {' *[Finalizado]*' if is_listo else ''}"
-          )
-
-          maps_url = p.get("maps_link", "").strip()
-          contactos = [c for c in p.get("contactos", []) if c.get("numero")]
-
-          partes_info = []
-          if maps_url:
-            partes_info.append(f"[📍 Ubicación]({maps_url})")
-          else:
-            partes_info.append("📍 *(Sin ubicación)*")
-
-          if contactos:
-            contactos_links = " | ".join([
-                f"[📞 {c['relacion']}](tel:{c['numero'].replace(' ', '').replace('-', '')})"
-                for c in contactos
-            ])
-            partes_info.append(contactos_links)
-          else:
-            partes_info.append("📞 *(Sin contacto)*")
-
-          st.markdown("  •  ".join(partes_info))
-
-          col_a, col_b = st.columns(2)
-
-          label_ida = "✅ Ida Realizada" if reg_ida else "❌ Ida Pendiente"
-          if col_a.button(
-              label_ida, key=f"t2_i_{p_id}_{fecha_str}", use_container_width=True
-          ):
-            info_paciente["ida"] = not reg_ida
-            actualizar_valores_paciente(info_paciente)
-            guardar_registro_db(fecha_str, nombre, info_paciente)
-            st.rerun()
-
-          label_vuelta = (
-              "✅ Vuelta Realizada" if reg_vuelta else "❌ Vuelta Pendiente"
-          )
-          if col_b.button(
-              label_vuelta,
-              key=f"t2_v_{p_id}_{fecha_str}",
-              use_container_width=True,
-          ):
-            info_paciente["vuelta"] = not reg_vuelta
-            actualizar_valores_paciente(info_paciente)
-            guardar_registro_db(fecha_str, nombre, info_paciente)
-            st.rerun()
-
-          col_f1, col_f2 = st.columns(2)
-          if not is_listo:
-            if col_f1.button(
-                "🏁 Finalizar Registro",
-                key=f"t2_f_{p_id}_{fecha_str}",
-                use_container_width=True,
-            ):
-              info_paciente["listo"] = True
-              guardar_registro_db(fecha_str, nombre, info_paciente)
-              st.rerun()
-          else:
-            if col_f1.button(
-                "🔄 Reabrir Registro",
-                key=f"t2_r_{p_id}_{fecha_str}",
-                use_container_width=True,
-            ):
-              info_paciente["listo"] = False
-              guardar_registro_db(fecha_str, nombre, info_paciente)
-              st.rerun()
-
-          with col_f2.expander("✏️ Editar Paciente"):
-            edit_nombre = st.text_input(
-                "Nombre y Apellido", value=p["nombre"], key=f"tts_nom_{p_id}"
-            )
-            edit_grupo = st.selectbox(
-                "Grupo Asignado",
-                [
-                    "Grupo 1 (Lunes, Miércoles, Viernes)",
-                    "Grupo 2 (Martes, Jueves, Sábados)",
-                ],
-                index=1 if p["grupo"] == "TTS" else 0,
-                key=f"tts_grp_{p_id}",
-            )
-            edit_turno = st.selectbox(
-                "Turno Habitual",
-                TURNOS_DISPONIBLES,
-                index=(
-                    TURNOS_DISPONIBLES.index(p["turno"])
-                    if p["turno"] in TURNOS_DISPONIBLES
-                    else 0
-                ),
-                key=f"tts_trn_{p_id}",
-            )
-            edit_maps = st.text_input(
-                "Enlace de Google Maps",
-                value=p.get("maps_link", ""),
-                key=f"tts_map_{p_id}",
-            )
-
-            st.markdown("---")
-            st.markdown("**📞 Teléfonos y Contactos:**")
-            contactos_actuales = p.get("contactos", [])
-            for idx_c, contacto in enumerate(contactos_actuales):
-              cols_c = st.columns([3, 3, 1])
-              cols_c[0].write(f"📞 {contacto['numero']}")
-              cols_c[1].write(f"({contacto['relacion']})")
-              if cols_c[2].button(
-                  "🗑️", key=f"tts_del_c_{p_id}_{idx_c}", use_container_width=True
-              ):
-                contactos_actuales.pop(idx_c)
-                guardar_paciente_db(
-                    p_id,
-                    p["grupo"],
-                    p["nombre"],
-                    p["turno"],
-                    p["maps_link"],
-                    contactos_actuales,
-                )
-                st.rerun()
-
-            nuevo_num = st.text_input(
-                "Número de teléfono", key=f"tts_new_num_{p_id}"
-            )
-            nueva_rel = st.text_input(
-                "Relación (Ej: Paciente, Hijo/a)", key=f"tts_new_rel_{p_id}"
-            )
-
-            if st.button(
-                "➕ Añadir Contacto",
-                key=f"tts_add_btn_{p_id}",
-                use_container_width=True,
-            ):
-              if nuevo_num.strip():
-                contactos_actuales.append({
-                    "numero": nuevo_num.strip(),
-                    "relacion": (
-                        nueva_rel.strip() if nueva_rel.strip() else "Contacto"
-                    ),
-                })
-                guardar_paciente_db(
-                    p_id,
-                    p["grupo"],
-                    p["nombre"],
-                    p["turno"],
-                    p["maps_link"],
-                    contactos_actuales,
-                )
-                st.success("¡Contacto añadido!")
-                st.rerun()
-              else:
-                st.error("Ingresa un número.")
-
-            st.markdown("---")
-            col_save, col_del = st.columns([4, 1])
-            if col_save.button(
-                "💾 Guardar Cambios",
-                key=f"tts_save_{p_id}",
-                type="primary",
-                use_container_width=True,
-            ):
-              nuevo_grupo_val = "MWF" if "Grupo 1" in edit_grupo else "TTS"
-              ok, err = guardar_paciente_db(
-                  p_id,
-                  nuevo_grupo_val,
-                  edit_nombre.strip(),
-                  edit_turno,
-                  edit_maps.strip(),
-                  contactos_actuales,
-              )
-              if ok:
-                st.success("¡Guardado!")
-                st.rerun()
-              else:
-                st.error(f"Error: {err}")
-
-            if col_del.button(
-                "🗑️",
-                key=f"tts_del_p_{p_id}",
-                use_container_width=True,
-                help="Eliminar paciente",
-            ):
-              ok, err = eliminar_paciente_db(p_id)
-              if ok:
-                st.rerun()
-              else:
-                st.error(f"Error: {err}")
-
-      if fecha_str in datos and datos[fecha_str]:
         st.markdown("---")
-        datos_del_dia = {fecha_str: datos[fecha_str]}
+        submitted = st.form_submit_button(
+            "💾 GUARDAR CAMBIOS DEL DÍAS",
+            type="primary",
+            use_container_width=True,
+        )
+
+        if submitted:
+          try:
+            for p_nombre, vals in form_estados.items():
+              if vals["viaja"]:
+                info_p = {
+                    "ida": vals["ida"],
+                    "vuelta": vals["vuelta"],
+                    "listo": (vals["ida"] and vals["vuelta"]),
+                    "turno_dia": vals["turno_dia"],
+                }
+                actualizar_valores_paciente(info_p)
+
+                # Guardar en Supabase de forma masiva
+                existing = (
+                    supabase.table("registros")
+                    .select("id")
+                    .eq("fecha", fecha_str)
+                    .eq("nombre", p_nombre)
+                    .execute()
+                )
+                payload = {
+                    "fecha": fecha_str,
+                    "nombre": p_nombre,
+                    "ida": info_p["ida"],
+                    "vuelta": info_p["vuelta"],
+                    "listo": info_p["listo"],
+                    "estado": info_p["estado"],
+                    "valor": info_p["valor"],
+                    "turno_dia": info_p["turno_dia"],
+                }
+                if existing.data:
+                  supabase.table("registros").update(payload).eq(
+                      "id", existing.data[0]["id"]
+                  ).execute()
+                else:
+                  supabase.table("registros").insert(payload).execute()
+              else:
+                # Si se desmarcó, eliminar el registro de ese día si existía
+                supabase.table("registros").delete().eq(
+                    "fecha", fecha_str
+                ).eq("nombre", p_nombre).execute()
+
+            st.cache_data.clear()
+            st.success(
+                "¡Todos los cambios del día se guardaron correctamente!"
+            )
+            st.rerun()
+          except Exception as e:
+            st.error(f"Error al guardar los registros del día: {e}")
+
+      # --- VISTA RÁPIDA DE CONTROL DEL DÍA ---
+      datos_frescos = cargar_registros_db()
+      pacientes_hoy_dict = datos_frescos.get(fecha_str, {})
+
+      if pacientes_hoy_dict:
+        st.markdown("---")
+        st.subheader("📋 Resumen del Día Seleccionado")
+
+        col_r1, col_r2 = st.columns(2)
+        with col_r1:
+          st.markdown("### ⏰ Turno 05:40 AM")
+          t1_list = [
+              (nom, inf)
+              for nom, inf in pacientes_hoy_dict.items()
+              if inf.get("turno_dia") == "05:40"
+          ]
+          if not t1_list:
+            st.write("*(Sin pacientes)*")
+          for nom, inf in t1_list:
+            st.markdown(
+                f"- **{nom}**: {inf['estado']} (${inf['valor']:,})"
+            )
+
+        with col_r2:
+          st.markdown("### ⏰ Turno 08:40 AM")
+          t2_list = [
+              (nom, inf)
+              for nom, inf in pacientes_hoy_dict.items()
+              if inf.get("turno_dia") == "08:40"
+          ]
+          if not t2_list:
+            st.write("*(Sin pacientes)*")
+          for nom, inf in t2_list:
+            st.markdown(
+                f"- **{nom}**: {inf['estado']} (${inf['valor']:,})"
+            )
+
+        st.markdown("")
+        datos_del_dia = {fecha_str: pacientes_hoy_dict}
         excel_bytes_dia = generar_excel_bytes(datos_del_dia, es_diario=True)
         nombre_archivo_dia = (
             f"resumen_{fecha_seleccionada.strftime('%d_%m_%Y')}.xlsx"
