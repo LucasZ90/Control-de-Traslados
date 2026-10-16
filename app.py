@@ -543,28 +543,29 @@ if menu == "Registrar / Actualizar Viajes":
       )
       st.metric(label="👥 Pacientes Pendientes Hoy", value=pendientes_totales)
 
-      # --- RENDERIZAR TURNOS ---
+      # --- RENDERIZAR TURNOS CON ORDENAMIENTO ESTRICTO (PENDIENTES ARRIBA, FINALIZADOS ABAJO) ---
       for turno_turno, titulo_turno in [
           ("05:40", "⏰ Turno 05:40 AM"),
           ("08:40", "⏰ Turno 08:40 AM"),
       ]:
         st.markdown(f"### {titulo_turno}")
-        pacientes_turno = [
-            p
-            for p in todos_pacientes
-            if p["nombre"] in pacientes_hoy_dict
-            and pacientes_hoy_dict[p["nombre"]].get("turno_dia", "05:40")
-            == turno_turno
-        ]
+        
+        # Filtrar los pacientes que pertenecen a este turno en el día
+        pacientes_turno = []
+        for p in todos_pacientes:
+          nombre_p = p["nombre"]
+          if nombre_p in pacientes_hoy_dict:
+            if pacientes_hoy_dict[nombre_p].get("turno_dia", "05:40") == turno_turno:
+              pacientes_turno.append(p)
 
         if not pacientes_turno:
           st.write("*(Sin pacientes programados en este turno)*")
         else:
-          # ORDENAR: Los pacientes no finalizados van primero, los finalizados se mueven al final
+          # Ordenar estrictamente: False (no finalizados) primero, True (finalizados) al fondo
           pacientes_turno.sort(
               key=lambda p: (
-                  pacientes_hoy_dict[p["nombre"]].get("listo", False),
-                  p["nombre"],
+                  1 if pacientes_hoy_dict[p["nombre"]].get("listo", False) else 0,
+                  p["nombre"]
               )
           )
 
@@ -584,7 +585,7 @@ if menu == "Registrar / Actualizar Viajes":
             )
             finalizado_txt = " *[Finalizado]*" if is_listo else ""
 
-            # Desplegable al tocar el nombre
+            # Desplegable minimalista al tocar el nombre
             with st.expander(
                 f"{estado_icono} {nombre}{finalizado_txt}", expanded=False
             ):
