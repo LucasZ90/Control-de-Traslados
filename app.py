@@ -11,7 +11,7 @@ st.set_page_config(
     page_title="Gestión de Traslados - Diálisis", page_icon="🚗", layout="centered"
 )
 
-# --- CONEXIÓN A SUPABASE (Con limpieza de URL para evitar PGRST125) ---
+# --- CONEXIÓN A SUPABASE ---
 try:
   supabase_url = st.secrets["SUPABASE_URL"].strip().rstrip("/")
   supabase_key = st.secrets["SUPABASE_KEY"].strip()
@@ -374,6 +374,7 @@ if menu == "Registrar / Actualizar Viajes":
 
       for idx_p, p in enumerate(pacientes_t1):
         nombre = p["nombre"]
+        p_id = p.get("id", idx_p)
 
         if nombre not in datos[fecha_str]:
           datos[fecha_str][nombre] = {
@@ -424,7 +425,7 @@ if menu == "Registrar / Actualizar Viajes":
 
           label_ida = "✅ Ida Realizada" if reg_ida else "❌ Ida Pendiente"
           if col_a.button(
-              label_ida, key=f"t1_i_{idx_p}_{nombre}", use_container_width=True
+              label_ida, key=f"t1_i_{p_id}_{nombre}", use_container_width=True
           ):
             info_paciente["ida"] = not reg_ida
             actualizar_valores_paciente(info_paciente)
@@ -436,7 +437,7 @@ if menu == "Registrar / Actualizar Viajes":
           )
           if col_b.button(
               label_vuelta,
-              key=f"t1_v_{idx_p}_{nombre}",
+              key=f"t1_v_{p_id}_{nombre}",
               use_container_width=True,
           ):
             info_paciente["vuelta"] = not reg_vuelta
@@ -447,7 +448,7 @@ if menu == "Registrar / Actualizar Viajes":
           if not is_listo:
             if st.button(
                 "🏁 Finalizar Registro",
-                key=f"t1_f_{idx_p}_{nombre}",
+                key=f"t1_f_{p_id}_{nombre}",
                 use_container_width=True,
             ):
               info_paciente["listo"] = True
@@ -456,7 +457,7 @@ if menu == "Registrar / Actualizar Viajes":
           else:
             if st.button(
                 "🔄 Reabrir Registro",
-                key=f"t1_r_{idx_p}_{nombre}",
+                key=f"t1_r_{p_id}_{nombre}",
                 use_container_width=True,
             ):
               info_paciente["listo"] = False
@@ -471,6 +472,7 @@ if menu == "Registrar / Actualizar Viajes":
 
       for idx_p, p in enumerate(pacientes_t2):
         nombre = p["nombre"]
+        p_id = p.get("id", idx_p)
 
         if nombre not in datos[fecha_str]:
           datos[fecha_str][nombre] = {
@@ -521,7 +523,7 @@ if menu == "Registrar / Actualizar Viajes":
 
           label_ida = "✅ Ida Realizada" if reg_ida else "❌ Ida Pendiente"
           if col_a.button(
-              label_ida, key=f"t2_i_{idx_p}_{nombre}", use_container_width=True
+              label_ida, key=f"t2_i_{p_id}_{nombre}", use_container_width=True
           ):
             info_paciente["ida"] = not reg_ida
             actualizar_valores_paciente(info_paciente)
@@ -533,7 +535,7 @@ if menu == "Registrar / Actualizar Viajes":
           )
           if col_b.button(
               label_vuelta,
-              key=f"t2_v_{idx_p}_{nombre}",
+              key=f"t2_v_{p_id}_{nombre}",
               use_container_width=True,
           ):
             info_paciente["vuelta"] = not reg_vuelta
@@ -544,7 +546,7 @@ if menu == "Registrar / Actualizar Viajes":
           if not is_listo:
             if st.button(
                 "🏁 Finalizar Registro",
-                key=f"t2_f_{idx_p}_{nombre}",
+                key=f"t2_f_{p_id}_{nombre}",
                 use_container_width=True,
             ):
               info_paciente["listo"] = True
@@ -553,7 +555,7 @@ if menu == "Registrar / Actualizar Viajes":
           else:
             if st.button(
                 "🔄 Reabrir Registro",
-                key=f"t2_r_{idx_p}_{nombre}",
+                key=f"t2_r_{p_id}_{nombre}",
                 use_container_width=True,
             ):
               info_paciente["listo"] = False
@@ -587,13 +589,14 @@ elif menu == "Gestionar Pacientes":
 
   with pestana1:
     st.subheader("Grupo 1 (Lunes, Miércoles, Viernes)")
-    for idx_p, p in enumerate(list(grupo_MWF)):
+    for p in grupo_MWF:
+      p_id = p["id"]
       with st.container(border=True):
         st.markdown(f"**{p['nombre']}** — *Turno: {p['turno']}*")
 
         with st.expander("✏️ Editar"):
           edit_nombre = st.text_input(
-              "Nombre y Apellido", value=p["nombre"], key=f"mwf_nom_{idx_p}"
+              "Nombre y Apellido", value=p["nombre"], key=f"mwf_nom_{p_id}"
           )
           edit_grupo = st.selectbox(
               "Grupo Asignado",
@@ -602,18 +605,22 @@ elif menu == "Gestionar Pacientes":
                   "Grupo 2 (Martes, Jueves, Sábados)",
               ],
               index=0,
-              key=f"mwf_grp_{idx_p}",
+              key=f"mwf_grp_{p_id}",
           )
           edit_turno = st.selectbox(
               "Turno Habitual",
               TURNOS_DISPONIBLES,
-              index=TURNOS_DISPONIBLES.index(p["turno"]),
-              key=f"mwf_trn_{idx_p}",
+              index=(
+                  TURNOS_DISPONIBLES.index(p["turno"])
+                  if p["turno"] in TURNOS_DISPONIBLES
+                  else 0
+              ),
+              key=f"mwf_trn_{p_id}",
           )
           edit_maps = st.text_input(
               "Enlace de Google Maps",
               value=p.get("maps_link", ""),
-              key=f"mwf_map_{idx_p}",
+              key=f"mwf_map_{p_id}",
           )
 
           st.markdown("---")
@@ -625,11 +632,11 @@ elif menu == "Gestionar Pacientes":
             cols_c[0].write(f"📞 {contacto['numero']}")
             cols_c[1].write(f"({contacto['relacion']})")
             if cols_c[2].button(
-                "🗑️", key=f"mwf_del_c_{idx_p}_{idx_c}", use_container_width=True
+                "🗑️", key=f"mwf_del_c_{p_id}_{idx_c}", use_container_width=True
             ):
               contactos.pop(idx_c)
               ok, err = guardar_paciente_db(
-                  p.get("id"),
+                  p_id,
                   "MWF",
                   p["nombre"],
                   p["turno"],
@@ -643,16 +650,16 @@ elif menu == "Gestionar Pacientes":
                 st.error(f"Error al guardar: {err}")
 
           nuevo_num = st.text_input(
-              "Número de teléfono", key=f"mwf_new_num_{idx_p}"
+              "Número de teléfono", key=f"mwf_new_num_{p_id}"
           )
           nueva_rel = st.text_input(
               "Relación (Ej: Paciente, Hijo/a, Cuidador)",
-              key=f"mwf_new_rel_{idx_p}",
+              key=f"mwf_new_rel_{p_id}",
           )
 
           if st.button(
               "➕ Añadir este Contacto",
-              key=f"mwf_add_btn_{idx_p}",
+              key=f"mwf_add_btn_{p_id}",
               use_container_width=True,
           ):
             if nuevo_num.strip():
@@ -663,7 +670,7 @@ elif menu == "Gestionar Pacientes":
                   ),
               })
               ok, err = guardar_paciente_db(
-                  p.get("id"),
+                  p_id,
                   "MWF",
                   p["nombre"],
                   p["turno"],
@@ -682,13 +689,13 @@ elif menu == "Gestionar Pacientes":
           col_save, col_del = st.columns([5, 1])
           if col_save.button(
               "💾 Guardar Cambios",
-              key=f"mwf_save_{idx_p}",
+              key=f"mwf_save_{p_id}",
               type="primary",
               use_container_width=True,
           ):
             nuevo_grupo_val = "MWF" if "Grupo 1" in edit_grupo else "TTS"
             ok, err = guardar_paciente_db(
-                p.get("id"),
+                p_id,
                 nuevo_grupo_val,
                 edit_nombre.strip(),
                 edit_turno,
@@ -703,11 +710,11 @@ elif menu == "Gestionar Pacientes":
 
           if col_del.button(
               "🗑️",
-              key=f"mwf_del_p_{idx_p}",
+              key=f"mwf_del_p_{p_id}",
               use_container_width=True,
               help="Eliminar paciente",
           ):
-            ok, err = eliminar_paciente_db(p.get("id"))
+            ok, err = eliminar_paciente_db(p_id)
             if ok:
               st.rerun()
             else:
@@ -715,13 +722,14 @@ elif menu == "Gestionar Pacientes":
 
     st.markdown("---")
     st.subheader("Grupo 2 (Martes, Jueves, Sábados)")
-    for idx_p, p in enumerate(list(grupo_TTS)):
+    for p in grupo_TTS:
+      p_id = p["id"]
       with st.container(border=True):
         st.markdown(f"**{p['nombre']}** — *Turno: {p['turno']}*")
 
         with st.expander("✏️ Editar"):
           edit_nombre = st.text_input(
-              "Nombre y Apellido", value=p["nombre"], key=f"tts_nom_{idx_p}"
+              "Nombre y Apellido", value=p["nombre"], key=f"tts_nom_{p_id}"
           )
           edit_grupo = st.selectbox(
               "Grupo Asignado",
@@ -730,18 +738,22 @@ elif menu == "Gestionar Pacientes":
                   "Grupo 2 (Martes, Jueves, Sábados)",
               ],
               index=1,
-              key=f"tts_grp_{idx_p}",
+              key=f"tts_grp_{p_id}",
           )
           edit_turno = st.selectbox(
               "Turno Habitual",
               TURNOS_DISPONIBLES,
-              index=TURNOS_DISPONIBLES.index(p["turno"]),
-              key=f"tts_trn_{idx_p}",
+              index=(
+                  TURNOS_DISPONIBLES.index(p["turno"])
+                  if p["turno"] in TURNOS_DISPONIBLES
+                  else 0
+              ),
+              key=f"tts_trn_{p_id}",
           )
           edit_maps = st.text_input(
               "Enlace de Google Maps",
               value=p.get("maps_link", ""),
-              key=f"tts_map_{idx_p}",
+              key=f"tts_map_{p_id}",
           )
 
           st.markdown("---")
@@ -753,11 +765,11 @@ elif menu == "Gestionar Pacientes":
             cols_c[0].write(f"📞 {contacto['numero']}")
             cols_c[1].write(f"({contacto['relacion']})")
             if cols_c[2].button(
-                "🗑️", key=f"tts_del_c_{idx_p}_{idx_c}", use_container_width=True
+                "🗑️", key=f"tts_del_c_{p_id}_{idx_c}", use_container_width=True
             ):
               contactos.pop(idx_c)
               ok, err = guardar_paciente_db(
-                  p.get("id"),
+                  p_id,
                   "TTS",
                   p["nombre"],
                   p["turno"],
@@ -771,16 +783,16 @@ elif menu == "Gestionar Pacientes":
                 st.error(f"Error al guardar: {err}")
 
           nuevo_num = st.text_input(
-              "Número de teléfono", key=f"tts_new_num_{idx_p}"
+              "Número de teléfono", key=f"tts_new_num_{p_id}"
           )
           nueva_rel = st.text_input(
               "Relación (Ej: Paciente, Hijo/a, Cuidador)",
-              key=f"tts_new_rel_{idx_p}",
+              key=f"tts_new_rel_{p_id}",
           )
 
           if st.button(
               "➕ Añadir este Contacto",
-              key=f"tts_add_btn_{idx_p}",
+              key=f"tts_add_btn_{p_id}",
               use_container_width=True,
           ):
             if nuevo_num.strip():
@@ -791,7 +803,7 @@ elif menu == "Gestionar Pacientes":
                   ),
               })
               ok, err = guardar_paciente_db(
-                  p.get("id"),
+                  p_id,
                   "TTS",
                   p["nombre"],
                   p["turno"],
@@ -810,13 +822,13 @@ elif menu == "Gestionar Pacientes":
           col_save, col_del = st.columns([5, 1])
           if col_save.button(
               "💾 Guardar Cambios",
-              key=f"tts_save_{idx_p}",
+              key=f"tts_save_{p_id}",
               type="primary",
               use_container_width=True,
           ):
             nuevo_grupo_val = "MWF" if "Grupo 1" in edit_grupo else "TTS"
             ok, err = guardar_paciente_db(
-                p.get("id"),
+                p_id,
                 nuevo_grupo_val,
                 edit_nombre.strip(),
                 edit_turno,
@@ -831,11 +843,11 @@ elif menu == "Gestionar Pacientes":
 
           if col_del.button(
               "🗑️",
-              key=f"tts_del_p_{idx_p}",
+              key=f"tts_del_p_{p_id}",
               use_container_width=True,
               help="Eliminar paciente",
           ):
-            ok, err = eliminar_paciente_db(p.get("id"))
+            ok, err = eliminar_paciente_db(p_id)
             if ok:
               st.rerun()
             else:
