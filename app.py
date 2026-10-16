@@ -11,15 +11,15 @@ st.set_page_config(
     page_title="Gestión de Traslados - Diálisis", page_icon="🚗", layout="centered"
 )
 
-# --- CONEXIÓN A SUPABASE ---
+# --- CONEXIÓN A SUPABASE (Con limpieza de URL para evitar PGRST125) ---
 try:
-  supabase_url = st.secrets["SUPABASE_URL"]
-  supabase_key = st.secrets["SUPABASE_KEY"]
+  supabase_url = st.secrets["SUPABASE_URL"].strip().rstrip("/")
+  supabase_key = st.secrets["SUPABASE_KEY"].strip()
   supabase = create_client(supabase_url, supabase_key)
 except Exception as e:
   st.error(
       "⚠️ Error de configuración: Faltan las credenciales de Supabase en los"
-      " Secrets de Streamlit."
+      f" Secrets de Streamlit. Detalle: {e}"
   )
   st.stop()
 
@@ -886,8 +886,8 @@ elif menu == "Gestionar Pacientes":
           lista_contactos.append({
               "numero": nuevo_tel.strip(),
               "relacion": (
-                  nueva_rel_temp.strip()
-                  if "nuevo_rel_temp" in locals() and nuevo_rel_temp.strip()
+                  nueva_rel_tel.strip()
+                  if nueva_rel_tel.strip()
                   else "Paciente"
               ),
           })
