@@ -93,13 +93,10 @@ def cargar_pacientes_db():
         }).execute()
       response = supabase.table("pacientes").select("*").execute()
       data = response.data
-
-    mwf = [p for p in data if p["grupo"] == "MWF"]
-    tts = [p for p in data if p["grupo"] == "TTS"]
-    return {"MWF": mwf, "TTS": tts}
+    return data
   except Exception as e:
     st.error(f"Error al conectar con la tabla pacientes: {e}")
-    return {"MWF": DEFAULT_MWF, "TTS": DEFAULT_TTS}
+    return DEFAULT_MWF + DEFAULT_TTS
 
 
 def guardar_paciente_db(p_id, grupo, nombre, turno, maps_link, contactos):
@@ -152,6 +149,7 @@ def cargar_registros_db():
                 "listo": row["listo"],
                 "estado": row["estado"],
                 "valor": row["valor"],
+                "turno_dia": row.get("turno_dia", "05:40"),
             }
         except ValueError:
           pass
@@ -169,27 +167,32 @@ def guardar_registro_db(fecha_str, nombre, info):
         .eq("nombre", nombre)
         .execute()
     )
+    payload = {
+        "fecha": fecha_str,
+        "nombre": nombre,
+        "ida": info["ida"],
+        "vuelta": info["vuelta"],
+        "listo": info["listo"],
+        "estado": info["estado"],
+        "valor": info["valor"],
+        "turno_dia": info.get("turno_dia", "05:40"),
+    }
     if existing.data:
       row_id = existing.data[0]["id"]
-      supabase.table("registros").update({
-          "ida": info["ida"],
-          "vuelta": info["vuelta"],
-          "listo": info["listo"],
-          "estado": info["estado"],
-          "valor": info["valor"],
-      }).eq("id", row_id).execute()
+      supabase.table("registros").update(payload).eq("id", row_id).execute()
     else:
-      supabase.table("registros").insert({
-          "fecha": fecha_str,
-          "nombre": nombre,
-          "ida": info["ida"],
-          "vuelta": info["vuelta"],
-          "listo": info["listo"],
-          "estado": info["estado"],
-          "valor": info["valor"],
-      }).execute()
+      supabase.table("registros").insert(payload).execute()
   except Exception as e:
     st.error(f"Error al guardar registro: {e}")
+
+
+def eliminar_registro_db(fecha_str, nombre):
+  try:
+    supabase.table("registros").delete().eq("fecha", fecha_str).eq(
+        "nombre", nombre
+    ).execute()
+  except Exception as e:
+    st.error(f"Error al eliminar registro: {e}")
 
 
 def actualizar_valores_paciente(info):
@@ -298,21 +301,18 @@ menu = st.session_state["menu_actual"]
 st.markdown("---")
 
 datos = cargar_registros_db()
-pacientes_db = cargar_pacientes_db()
-
-grupo_MWF = pacientes_db["MWF"]
-grupo_TTS = pacientes_db["TTS"]
+todos_pacientes = cargar_pacientes_db()
 
 if menu == "Registrar / Actualizar Viajes":
   st.subheader("📋 Registro Diario")
 
   # Botón superior para agregar nuevo paciente directamente
-  with st.expander("➕ Agregar Nuevo Paciente"):
+  with st.expander("➕ Agregar Nuevo Paciente al Sistema"):
     nuevo_nombre = st.text_input(
         "Nombre y Apellido del Paciente", key="nuevo_nombre_paciente"
     )
     nuevo_grupo = st.selectbox(
-        "Selecciona el Grupo",
+        "Grupo por Defecto",
         [
             "Grupo 1 (Lunes, Miércoles, Viernes)",
             "Grupo 2 (Martes, Jueves, Sábados)",
@@ -320,9 +320,7 @@ if menu == "Registrar / Actualizar Viajes":
         key="nuevo_grupo_paciente",
     )
     nuevo_turno = st.selectbox(
-        "Horario de Turno Habitual",
-        TURNOS_DISPONIBLES,
-        key="nuevo_turno_paciente",
+        "Horario Habitual", TURNOS_DISPONIBLES, key="nuevo_turno_paciente"
     )
     nuevo_maps = st.text_input(
         "Enlace de Google Maps (Opcional)", key="nuevo_maps_paciente"
@@ -385,69 +383,123 @@ if menu == "Registrar / Actualizar Viajes":
     if dia_semana == 6:
       st.warning("⚠️ Los domingos no hay servicio programado.")
     else:
-      if dia_semana in [0, 2, 4]:
-        pacientes = grupo_MWF
-        nombre_dia = [
-            "Lunes",
-            "Martes",
-            "Miércoles",
-            "Jueves",
-            "Viernes",
-            "Sábado",
-            "Domingo",
-        ][dia_semana]
-        st.info(
-            f"📅 **{fecha_str}** ({nombre_dia}) — *Grupo 1 (Lunes, Miércoles,"
-            " Viernes)*"
-        )
-      else:
-        pacientes = grupo_TTS
-        nombre_dia = [
-            "Lunes",
-            "Martes",
-            "Miércoles",
-            "Jueves",
-            "Viernes",
-            "Sábado",
-            "Domingo",
-        ][dia_semana]
-        st.info(
-            f"📅 **{fecha_str}** ({nombre_dia}) — *Grupo 2 (Martes, Jueves,"
-            " Sábados)*"
-        )
+      nombre_dia = [
+          "Lunes",
+          "Martes",
+          "Miércoles",
+          "Jueves",
+          "Viernes",
+          "Sábado",
+          "Domingo",
+      ][dia_semana]
+      grupo_sugerido = "MWF" if dia_semana in [0, 2, 4] else "TTS"
+      st.info(
+          f"📅 **{fecha_str}** ({nombre_dia}) — *Sugerencia: Grupo"
+          f" {'1 (MWF)' if grupo_sugerido == 'MWF' else '2 (TTS)'}*"
+      )
 
       if fecha_str not in datos:
         datos[fecha_str] = {}
 
-      def esta_finalizado(p):
-        info = datos.get(fecha_str, {}).get(p["nombre"], {})
+      # --- CONFIGURACIÓN DINÁMICA DE PACIENTES PARA ESTE DÍA ---
+      with st.expander(
+          "⚙️ Seleccionar pacientes y turnos de hoy", expanded=False
+      ):
+        st.write(
+            "Marca los pacientes que viajan hoy y ajusta su turno si es"
+            " necesario:"
+        )
+        for p in todos_pacientes:
+          p_nombre = p["nombre"]
+          p_id = p.get("id")
+          # Por defecto se marca si ya está en los registros del día o si pertenece al grupo sugerido del día
+          sugerido = (p_nombre in datos[fecha_str]) or (
+              p.get("grupo") == grupo_sugerido
+          )
+
+          cols_sel = st.columns([3, 2])
+          seleccionado = cols_sel[0].checkbox(
+              f"{p_nombre} ({p.get('turno','05:40')})",
+              value=sugerido,
+              key=f"chk_sel_{fecha_str}_{p_id}",
+          )
+
+          # Turno asignado para este día en específico
+          turno_actual_dia = (
+              datos[fecha_str][p_nombre].get(
+                  "turno_dia", p.get("turno", "05:40")
+              )
+              if p_nombre in datos[fecha_str]
+              else p.get("turno", "05:40")
+          )
+          idx_turno = (
+              TURNOS_DISPONIBLES.index(turno_actual_dia)
+              if turno_actual_dia in TURNOS_DISPONIBLES
+              else 0
+          )
+
+          turno_elegido = cols_sel[1].selectbox(
+              "Turno hoy",
+              TURNOS_DISPONIBLES,
+              index=idx_turno,
+              key=f"sel_trn_{fecha_str}_{p_id}",
+              label_visibility="collapsed",
+          )
+
+          if seleccionado:
+            if p_nombre not in datos[fecha_str]:
+              datos[fecha_str][p_nombre] = {
+                  "ida": False,
+                  "vuelta": False,
+                  "listo": False,
+                  "estado": "Ausente (No viajó)",
+                  "valor": 0,
+                  "turno_dia": turno_elegido,
+              }
+            else:
+              datos[fecha_str][p_nombre]["turno_dia"] = turno_elegido
+            guardar_registro_db(fecha_str, p_nombre, datos[fecha_str][p_nombre])
+          else:
+            if p_nombre in datos[fecha_str]:
+              del datos[fecha_str][p_nombre]
+              eliminar_registro_db(fecha_str, p_nombre)
+
+      pacientes_hoy_dict = datos.get(fecha_str, {})
+      pacientes_hoy_lista = [
+          p
+          for p in todos_pacientes
+          if p["nombre"] in pacientes_hoy_dict
+          and pacientes_hoy_dict[p["nombre"]].get("turno_dia") == "05:40"
+      ]
+
+      def esta_finalizado(p_nombre):
+        info = pacientes_hoy_dict.get(p_nombre, {})
         return (info.get("ida", False) and info.get("vuelta", False)) or info.get(
             "listo", False
         )
 
-      pendientes_totales = sum(1 for p in pacientes if not esta_finalizado(p))
+      pendientes_totales = sum(
+          1 for nom in pacientes_hoy_dict if not esta_finalizado(nom)
+      )
       st.metric(label="👥 Pacientes Pendientes Hoy", value=pendientes_totales)
 
+      # --- TURNO 05:40 AM ---
       st.markdown("### ⏰ Turno 05:40 AM")
-      pacientes_t1 = [p for p in pacientes if p["turno"] == "05:40"]
+      pacientes_t1 = [
+          p
+          for p in todos_pacientes
+          if p["nombre"] in pacientes_hoy_dict
+          and pacientes_hoy_dict[p["nombre"]].get("turno_dia", "05:40")
+          == "05:40"
+      ]
 
       if not pacientes_t1:
-        st.write("*(Sin pacientes programados)*")
+        st.write("*(Sin pacientes programados en este turno)*")
 
       for p in pacientes_t1:
         nombre = p["nombre"]
         p_id = p["id"]
-
-        if nombre not in datos[fecha_str]:
-          datos[fecha_str][nombre] = {
-              "ida": False,
-              "vuelta": False,
-              "listo": False,
-              "estado": "Ausente (No viajó)",
-              "valor": 0,
-          }
-
-        info_paciente = datos[fecha_str][nombre]
+        info_paciente = pacientes_hoy_dict[nombre]
         reg_ida = info_paciente.get("ida", False)
         reg_vuelta = info_paciente.get("vuelta", False)
         is_listo = info_paciente.get("listo", False)
@@ -487,7 +539,7 @@ if menu == "Registrar / Actualizar Viajes":
 
           label_ida = "✅ Ida Realizada" if reg_ida else "❌ Ida Pendiente"
           if col_a.button(
-              label_ida, key=f"t1_i_{p_id}_{nombre}", use_container_width=True
+              label_ida, key=f"t1_i_{p_id}_{fecha_str}", use_container_width=True
           ):
             info_paciente["ida"] = not reg_ida
             actualizar_valores_paciente(info_paciente)
@@ -499,7 +551,7 @@ if menu == "Registrar / Actualizar Viajes":
           )
           if col_b.button(
               label_vuelta,
-              key=f"t1_v_{p_id}_{nombre}",
+              key=f"t1_v_{p_id}_{fecha_str}",
               use_container_width=True,
           ):
             info_paciente["vuelta"] = not reg_vuelta
@@ -511,7 +563,7 @@ if menu == "Registrar / Actualizar Viajes":
           if not is_listo:
             if col_f1.button(
                 "🏁 Finalizar Registro",
-                key=f"t1_f_{p_id}_{nombre}",
+                key=f"t1_f_{p_id}_{fecha_str}",
                 use_container_width=True,
             ):
               info_paciente["listo"] = True
@@ -520,7 +572,7 @@ if menu == "Registrar / Actualizar Viajes":
           else:
             if col_f1.button(
                 "🔄 Reabrir Registro",
-                key=f"t1_r_{p_id}_{nombre}",
+                key=f"t1_r_{p_id}_{fecha_str}",
                 use_container_width=True,
             ):
               info_paciente["listo"] = False
@@ -644,26 +696,23 @@ if menu == "Registrar / Actualizar Viajes":
               else:
                 st.error(f"Error: {err}")
 
+      # --- TURNO 08:40 AM ---
       st.markdown("### ⏰ Turno 08:40 AM")
-      pacientes_t2 = [p for p in pacientes if p["turno"] == "08:40"]
+      pacientes_t2 = [
+          p
+          for p in todos_pacientes
+          if p["nombre"] in pacientes_hoy_dict
+          and pacientes_hoy_dict[p["nombre"]].get("turno_dia", "05:40")
+          == "08:40"
+      ]
 
       if not pacientes_t2:
-        st.write("*(Sin pacientes programados)*")
+        st.write("*(Sin pacientes programados en este turno)*")
 
       for p in pacientes_t2:
         nombre = p["nombre"]
         p_id = p["id"]
-
-        if nombre not in datos[fecha_str]:
-          datos[fecha_str][nombre] = {
-              "ida": False,
-              "vuelta": False,
-              "listo": False,
-              "estado": "Ausente (No viajó)",
-              "valor": 0,
-          }
-
-        info_paciente = datos[fecha_str][nombre]
+        info_paciente = pacientes_hoy_dict[nombre]
         reg_ida = info_paciente.get("ida", False)
         reg_vuelta = info_paciente.get("vuelta", False)
         is_listo = info_paciente.get("listo", False)
@@ -703,7 +752,7 @@ if menu == "Registrar / Actualizar Viajes":
 
           label_ida = "✅ Ida Realizada" if reg_ida else "❌ Ida Pendiente"
           if col_a.button(
-              label_ida, key=f"t2_i_{p_id}_{nombre}", use_container_width=True
+              label_ida, key=f"t2_i_{p_id}_{fecha_str}", use_container_width=True
           ):
             info_paciente["ida"] = not reg_ida
             actualizar_valores_paciente(info_paciente)
@@ -715,7 +764,7 @@ if menu == "Registrar / Actualizar Viajes":
           )
           if col_b.button(
               label_vuelta,
-              key=f"t2_v_{p_id}_{nombre}",
+              key=f"t2_v_{p_id}_{fecha_str}",
               use_container_width=True,
           ):
             info_paciente["vuelta"] = not reg_vuelta
@@ -727,7 +776,7 @@ if menu == "Registrar / Actualizar Viajes":
           if not is_listo:
             if col_f1.button(
                 "🏁 Finalizar Registro",
-                key=f"t2_f_{p_id}_{nombre}",
+                key=f"t2_f_{p_id}_{fecha_str}",
                 use_container_width=True,
             ):
               info_paciente["listo"] = True
@@ -736,7 +785,7 @@ if menu == "Registrar / Actualizar Viajes":
           else:
             if col_f1.button(
                 "🔄 Reabrir Registro",
-                key=f"t2_r_{p_id}_{nombre}",
+                key=f"t2_r_{p_id}_{fecha_str}",
                 use_container_width=True,
             ):
               info_paciente["listo"] = False
@@ -860,7 +909,7 @@ if menu == "Registrar / Actualizar Viajes":
               else:
                 st.error(f"Error: {err}")
 
-      if fecha_str in datos:
+      if fecha_str in datos and datos[fecha_str]:
         st.markdown("---")
         datos_del_dia = {fecha_str: datos[fecha_str]}
         excel_bytes_dia = generar_excel_bytes(datos_del_dia, es_diario=True)
