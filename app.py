@@ -97,14 +97,15 @@ def cargar_pacientes_db():
     mwf = [p for p in data if p["grupo"] == "MWF"]
     tts = [p for p in data if p["grupo"] == "TTS"]
     return {"MWF": mwf, "TTS": tts}
-  except Exception:
+  except Exception as e:
+    st.error(f"Error al conectar con la tabla pacientes: {e}")
     return {"MWF": DEFAULT_MWF, "TTS": DEFAULT_TTS}
 
 
 def guardar_paciente_db(p_id, grupo, nombre, turno, maps_link, contactos):
   try:
     if p_id:
-      supabase.table("pacientes").update({
+      res = supabase.table("pacientes").update({
           "grupo": grupo,
           "nombre": nombre,
           "turno": turno,
@@ -112,23 +113,25 @@ def guardar_paciente_db(p_id, grupo, nombre, turno, maps_link, contactos):
           "contactos": contactos,
       }).eq("id", p_id).execute()
     else:
-      supabase.table("pacientes").insert({
+      res = supabase.table("pacientes").insert({
           "grupo": grupo,
           "nombre": nombre,
           "turno": turno,
           "maps_link": maps_link,
           "contactos": contactos,
       }).execute()
+    return True, None
   except Exception as e:
-    st.error(f"Error al guardar paciente en la base de datos: {e}")
+    return False, str(e)
 
 
 def eliminar_paciente_db(p_id):
   try:
     if p_id:
       supabase.table("pacientes").delete().eq("id", p_id).execute()
+    return True, None
   except Exception as e:
-    st.error(f"Error al eliminar paciente: {e}")
+    return False, str(e)
 
 
 def cargar_registros_db():
@@ -625,7 +628,7 @@ elif menu == "Gestionar Pacientes":
                 "🗑️", key=f"mwf_del_c_{idx_p}_{idx_c}", use_container_width=True
             ):
               contactos.pop(idx_c)
-              guardar_paciente_db(
+              ok, err = guardar_paciente_db(
                   p.get("id"),
                   "MWF",
                   p["nombre"],
@@ -633,7 +636,11 @@ elif menu == "Gestionar Pacientes":
                   p["maps_link"],
                   contactos,
               )
-              st.rerun()
+              if ok:
+                st.success("¡Contacto eliminado!")
+                st.rerun()
+              else:
+                st.error(f"Error al guardar: {err}")
 
           nuevo_num = st.text_input(
               "Número de teléfono", key=f"mwf_new_num_{idx_p}"
@@ -655,7 +662,7 @@ elif menu == "Gestionar Pacientes":
                       nueva_rel.strip() if nueva_rel.strip() else "Contacto"
                   ),
               })
-              guardar_paciente_db(
+              ok, err = guardar_paciente_db(
                   p.get("id"),
                   "MWF",
                   p["nombre"],
@@ -663,8 +670,11 @@ elif menu == "Gestionar Pacientes":
                   p["maps_link"],
                   contactos,
               )
-              st.success("¡Contacto añadido!")
-              st.rerun()
+              if ok:
+                st.success("¡Contacto añadido!")
+                st.rerun()
+              else:
+                st.error(f"Error al guardar: {err}")
             else:
               st.error("Por favor ingresa un número de teléfono.")
 
@@ -677,7 +687,7 @@ elif menu == "Gestionar Pacientes":
               use_container_width=True,
           ):
             nuevo_grupo_val = "MWF" if "Grupo 1" in edit_grupo else "TTS"
-            guardar_paciente_db(
+            ok, err = guardar_paciente_db(
                 p.get("id"),
                 nuevo_grupo_val,
                 edit_nombre.strip(),
@@ -685,8 +695,11 @@ elif menu == "Gestionar Pacientes":
                 edit_maps.strip(),
                 contactos,
             )
-            st.success("¡Cambios guardados con éxito!")
-            st.rerun()
+            if ok:
+              st.success("¡Cambios guardados con éxito!")
+              st.rerun()
+            else:
+              st.error(f"Error al guardar: {err}")
 
           if col_del.button(
               "🗑️",
@@ -694,8 +707,11 @@ elif menu == "Gestionar Pacientes":
               use_container_width=True,
               help="Eliminar paciente",
           ):
-            eliminar_paciente_db(p.get("id"))
-            st.rerun()
+            ok, err = eliminar_paciente_db(p.get("id"))
+            if ok:
+              st.rerun()
+            else:
+              st.error(f"Error al eliminar: {err}")
 
     st.markdown("---")
     st.subheader("Grupo 2 (Martes, Jueves, Sábados)")
@@ -740,7 +756,7 @@ elif menu == "Gestionar Pacientes":
                 "🗑️", key=f"tts_del_c_{idx_p}_{idx_c}", use_container_width=True
             ):
               contactos.pop(idx_c)
-              guardar_paciente_db(
+              ok, err = guardar_paciente_db(
                   p.get("id"),
                   "TTS",
                   p["nombre"],
@@ -748,7 +764,11 @@ elif menu == "Gestionar Pacientes":
                   p["maps_link"],
                   contactos,
               )
-              st.rerun()
+              if ok:
+                st.success("¡Contacto eliminado!")
+                st.rerun()
+              else:
+                st.error(f"Error al guardar: {err}")
 
           nuevo_num = st.text_input(
               "Número de teléfono", key=f"tts_new_num_{idx_p}"
@@ -770,7 +790,7 @@ elif menu == "Gestionar Pacientes":
                       nueva_rel.strip() if nueva_rel.strip() else "Contacto"
                   ),
               })
-              guardar_paciente_db(
+              ok, err = guardar_paciente_db(
                   p.get("id"),
                   "TTS",
                   p["nombre"],
@@ -778,8 +798,11 @@ elif menu == "Gestionar Pacientes":
                   p["maps_link"],
                   contactos,
               )
-              st.success("¡Contacto añadido!")
-              st.rerun()
+              if ok:
+                st.success("¡Contacto añadido!")
+                st.rerun()
+              else:
+                st.error(f"Error al guardar: {err}")
             else:
               st.error("Por favor ingresa un número de teléfono.")
 
@@ -792,7 +815,7 @@ elif menu == "Gestionar Pacientes":
               use_container_width=True,
           ):
             nuevo_grupo_val = "MWF" if "Grupo 1" in edit_grupo else "TTS"
-            guardar_paciente_db(
+            ok, err = guardar_paciente_db(
                 p.get("id"),
                 nuevo_grupo_val,
                 edit_nombre.strip(),
@@ -800,8 +823,11 @@ elif menu == "Gestionar Pacientes":
                 edit_maps.strip(),
                 contactos,
             )
-            st.success("¡Cambios guardados con éxito!")
-            st.rerun()
+            if ok:
+              st.success("¡Cambios guardados con éxito!")
+              st.rerun()
+            else:
+              st.error(f"Error al guardar: {err}")
 
           if col_del.button(
               "🗑️",
@@ -809,8 +835,11 @@ elif menu == "Gestionar Pacientes":
               use_container_width=True,
               help="Eliminar paciente",
           ):
-            eliminar_paciente_db(p.get("id"))
-            st.rerun()
+            ok, err = eliminar_paciente_db(p.get("id"))
+            if ok:
+              st.rerun()
+            else:
+              st.error(f"Error al eliminar: {err}")
 
   with pestana2:
     st.subheader("Agregar un nuevo paciente")
@@ -857,12 +886,14 @@ elif menu == "Gestionar Pacientes":
           lista_contactos.append({
               "numero": nuevo_tel.strip(),
               "relacion": (
-                  nueva_rel_tel.strip() if nueva_rel_tel.strip() else "Paciente"
+                  nueva_rel_temp.strip()
+                  if "nuevo_rel_temp" in locals() and nuevo_rel_temp.strip()
+                  else "Paciente"
               ),
           })
 
         nuevo_grupo_val = "MWF" if "Grupo 1" in nuevo_grupo else "TTS"
-        guardar_paciente_db(
+        ok, err = guardar_paciente_db(
             None,
             nuevo_grupo_val,
             nuevo_nombre.strip(),
@@ -870,8 +901,11 @@ elif menu == "Gestionar Pacientes":
             nuevo_maps.strip(),
             lista_contactos,
         )
-        st.success(f"¡Paciente '{nuevo_nombre}' agregado con éxito!")
-        st.rerun()
+        if ok:
+          st.success(f"¡Paciente '{nuevo_nombre}' agregado con éxito!")
+          st.rerun()
+        else:
+          st.error(f"Error al guardar nuevo paciente: {err}")
 
 elif menu == "Resumen Mensual":
   st.header("📊 Resumen Mensual y Total a Cobrar")
