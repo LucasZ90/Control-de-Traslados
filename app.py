@@ -543,7 +543,7 @@ if menu == "Registrar / Actualizar Viajes":
       )
       st.metric(label="👥 Pacientes Pendientes Hoy", value=pendientes_totales)
 
-      # --- RENDERIZAR TURNOS CON ESTILOS MINIMALISTAS ---
+      # --- RENDERIZAR TURNOS ---
       for turno_turno, titulo_turno in [
           ("05:40", "⏰ Turno 05:40 AM"),
           ("08:40", "⏰ Turno 08:40 AM"),
@@ -559,6 +559,14 @@ if menu == "Registrar / Actualizar Viajes":
 
         if not pacientes_turno:
           st.write("*(Sin pacientes programados en este turno)*")
+        else:
+          # ORDENAR: Los pacientes no finalizados van primero, los finalizados se mueven al final
+          pacientes_turno.sort(
+              key=lambda p: (
+                  pacientes_hoy_dict[p["nombre"]].get("listo", False),
+                  p["nombre"],
+              )
+          )
 
         for p in pacientes_turno:
           nombre = p["nombre"]
@@ -576,7 +584,7 @@ if menu == "Registrar / Actualizar Viajes":
             )
             finalizado_txt = " *[Finalizado]*" if is_listo else ""
 
-            # Desplegable minimalista al tocar el nombre
+            # Desplegable al tocar el nombre
             with st.expander(
                 f"{estado_icono} {nombre}{finalizado_txt}", expanded=False
             ):
@@ -725,6 +733,7 @@ if menu == "Registrar / Actualizar Viajes":
                 label_ida,
                 key=f"t_{turno_turno}_i_{p_id}_{fecha_str}",
                 use_container_width=True,
+                disabled=is_listo,  # Bloqueado si ya está finalizado
             ):
               info_paciente["ida"] = not reg_ida
               actualizar_valores_paciente(info_paciente)
@@ -736,6 +745,7 @@ if menu == "Registrar / Actualizar Viajes":
                 label_vuelta,
                 key=f"t_{turno_turno}_v_{p_id}_{fecha_str}",
                 use_container_width=True,
+                disabled=is_listo,  # Bloqueado si ya está finalizado
             ):
               info_paciente["vuelta"] = not reg_vuelta
               actualizar_valores_paciente(info_paciente)
