@@ -125,7 +125,8 @@ def guardar_paciente_db(p_id, grupo, nombre, turno, maps_link, contactos):
 
 def eliminar_paciente_db(p_id):
   try:
-    supabase.table("pacientes").delete().eq("id", p_id).execute()
+    if p_id:
+      supabase.table("pacientes").delete().eq("id", p_id).execute()
   except Exception as e:
     st.error(f"Error al eliminar paciente: {e}")
 
@@ -625,7 +626,7 @@ elif menu == "Gestionar Pacientes":
             ):
               contactos.pop(idx_c)
               guardar_paciente_db(
-                  p["id"],
+                  p.get("id"),
                   "MWF",
                   p["nombre"],
                   p["turno"],
@@ -655,7 +656,7 @@ elif menu == "Gestionar Pacientes":
                   ),
               })
               guardar_paciente_db(
-                  p["id"],
+                  p.get("id"),
                   "MWF",
                   p["nombre"],
                   p["turno"],
@@ -677,7 +678,7 @@ elif menu == "Gestionar Pacientes":
           ):
             nuevo_grupo_val = "MWF" if "Grupo 1" in edit_grupo else "TTS"
             guardar_paciente_db(
-                p["id"],
+                p.get("id"),
                 nuevo_grupo_val,
                 edit_nombre.strip(),
                 edit_turno,
@@ -693,7 +694,7 @@ elif menu == "Gestionar Pacientes":
               use_container_width=True,
               help="Eliminar paciente",
           ):
-            eliminar_paciente_db(p["id"])
+            eliminar_paciente_db(p.get("id"))
             st.rerun()
 
     st.markdown("---")
@@ -740,7 +741,7 @@ elif menu == "Gestionar Pacientes":
             ):
               contactos.pop(idx_c)
               guardar_paciente_db(
-                  p["id"],
+                  p.get("id"),
                   "TTS",
                   p["nombre"],
                   p["turno"],
@@ -770,7 +771,7 @@ elif menu == "Gestionar Pacientes":
                   ),
               })
               guardar_paciente_db(
-                  p["id"],
+                  p.get("id"),
                   "TTS",
                   p["nombre"],
                   p["turno"],
@@ -792,7 +793,7 @@ elif menu == "Gestionar Pacientes":
           ):
             nuevo_grupo_val = "MWF" if "Grupo 1" in edit_grupo else "TTS"
             guardar_paciente_db(
-                p["id"],
+                p.get("id"),
                 nuevo_grupo_val,
                 edit_nombre.strip(),
                 edit_turno,
@@ -808,7 +809,7 @@ elif menu == "Gestionar Pacientes":
               use_container_width=True,
               help="Eliminar paciente",
           ):
-            eliminar_paciente_db(p["id"])
+            eliminar_paciente_db(p.get("id"))
             st.rerun()
 
   with pestana2:
