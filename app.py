@@ -23,7 +23,7 @@ except Exception as e:
   )
   st.stop()
 
-# --- ESTILOS VISUALES PARA FORZAR HORIZONTALIDAD REAL EN MÓVIL ---
+# --- ESTILOS VISUALES COMPACTOS ---
 st.markdown("""
     <style>
     .stApp {
@@ -41,19 +41,12 @@ st.markdown("""
         color: #E2E8F0;
         font-family: 'Inter', sans-serif;
     }
-    /* Estilo de botones compactos */
     div.stButton > button {
         border-radius: 6px;
         font-weight: 600;
         padding: 0.3rem 0.1rem;
         font-size: 0.8rem;
         width: 100%;
-    }
-    /* Forzar que los botones de las columnas queden en línea horizontal estricta */
-    [data-testid="column"] {
-        width: fit-content !important;
-        flex: 1 !important;
-        min-width: 0 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -518,7 +511,6 @@ if menu == "Registrar / Actualizar Viajes":
           is_listo = info_paciente.get("listo", False)
 
           with st.container(border=True):
-            # Cabecera: Nombre y botón ✏️ al lado exacto usando una tabla HTML integrada limpia
             estado_icono = (
                 "🟢"
                 if (reg_ida and reg_vuelta)
@@ -526,18 +518,128 @@ if menu == "Registrar / Actualizar Viajes":
             )
             finalizado_txt = " *[Finalizado]*" if is_listo else ""
 
-            # Creamos un contenedor con columnas nativas para Nombre y Botón de Editar al lado
-            col_nombre, col_edit = st.columns([10, 1])
-            col_nombre.markdown(
-                f"**{estado_icono} {nombre}**{finalizado_txt}"
-            )
-            editar_click = col_edit.button(
-                "✏️",
-                key=f"btn_edit_icon_{p_id}_{fecha_str}",
-                help="Editar datos del paciente",
-            )
+            # El nombre del paciente ahora funciona como un expandible desplegable para editar sus datos
+            with st.expander(
+                f"{estado_icono} {nombre}{finalizado_txt}", expanded=False
+            ):
+              st.markdown(f"**Editando datos de {nombre}:**")
+              edit_nombre = st.text_input(
+                  "Nombre y Apellido", value=p["nombre"], key=f"edit_nom_{p_id}"
+              )
+              edit_grupo = st.selectbox(
+                  "Grupo Asignado",
+                  [
+                      "Grupo 1 (Lunes, Miércoles, Viernes)",
+                      "Grupo 2 (Martes, Jueves, Sábados)",
+                  ],
+                  index=0 if p["grupo"] == "MWF" else 1,
+                  key=f"edit_grp_{p_id}",
+              )
+              edit_turno = st.selectbox(
+                  "Turno Habitual",
+                  TURNOS_DISPONIBLES,
+                  index=(
+                      TURNOS_DISPONIBLES.index(p["turno"])
+                      if p["turno"] in TURNOS_DISPONIBLES
+                      else 0
+                  ),
+                  key=f"edit_trn_{p_id}",
+              )
+              edit_maps = st.text_input(
+                  "Enlace de Google Maps",
+                  value=p.get("maps_link", ""),
+                  key=f"edit_map_{p_id}",
+              )
 
-            # Información de mapas y contactos en línea compacta
+              st.markdown("**📞 Teléfonos y Contactos:**")
+              contactos_actuales = p.get("contactos", [])
+              for idx_c, contacto in enumerate(contactos_actuales):
+                cols_c = st.columns([3, 3, 1])
+                cols_c[0].write(f"📞 {contacto['numero']}")
+                cols_c[1].write(f"({contacto['relacion']})")
+                if cols_c[2].button(
+                    "🗑️", key=f"del_c_{p_id}_{idx_c}", use_container_width=True
+                ):
+                  contactos_actuales.pop(idx_c)
+                  guardar_paciente_db(
+                      p_id,
+                      p["grupo"],
+                      p["nombre"],
+                      p["turno"],
+                      p["maps_link"],
+                      contactos_actuales,
+                  )
+                  st.rerun()
+
+              nuevo_num = st.text_input(
+                  "Nuevo número de teléfono", key=f"new_num_{p_id}"
+              )
+              nueva_rel = st.text_input(
+                  "Relación (Ej: Paciente, Hijo/a)", key=f"new_rel_{p_id}"
+              )
+
+              if st.button(
+                  "➕ Añadir Contacto",
+                  key=f"add_btn_{p_id}",
+                  use_container_width=True,
+              ):
+                if nuevo_num.strip():
+                  contactos_actuales.append({
+                      "numero": nuevo_num.strip(),
+                      "relacion": (
+                          nueva_rel.strip()
+                          if nueva_rel.strip()
+                          else "Contacto"
+                      ),
+                  })
+                  guardar_paciente_db(
+                      p_id,
+                      p["grupo"],
+                      p["nombre"],
+                      p["turno"],
+                      p["maps_link"],
+                      contactos_actuales,
+                  )
+                  st.success("¡Contacto añadido!")
+                  st.rerun()
+                else:
+                  st.error("Ingresa un número.")
+
+              col_save, col_del = st.columns([4, 1])
+              if col_save.button(
+                  "💾 Guardar Cambios",
+                  key=f"save_{p_id}",
+                  type="primary",
+                  use_container_width=True,
+              ):
+                nuevo_grupo_val = "MWF" if "Grupo 1" in edit_grupo else "TTS"
+                ok, err = guardar_paciente_db(
+                    p_id,
+                    nuevo_grupo_val,
+                    edit_nombre.strip(),
+                    edit_turno,
+                    edit_maps.strip(),
+                    contactos_actuales,
+                )
+                if ok:
+                  st.success("¡Guardado!")
+                  st.rerun()
+                else:
+                  st.error(f"Error: {err}")
+
+              if col_del.button(
+                  "🗑️",
+                  key=f"del_p_{p_id}",
+                  use_container_width=True,
+                  help="Eliminar paciente",
+              ):
+                ok, err = eliminar_paciente_db(p_id)
+                if ok:
+                  st.rerun()
+                else:
+                  st.error(f"Error: {err}")
+
+            # Información de mapas y contactos en línea compacta debajo del nombre
             maps_url = p.get("maps_link", "").strip()
             contactos = [c for c in p.get("contactos", []) if c.get("numero")]
             partes_info = []
@@ -560,8 +662,7 @@ if menu == "Registrar / Actualizar Viajes":
 
             st.markdown("")
 
-            # --- BOTONES IDA, VUELTA Y FIN FORZADOS EN UNA SOLA LÍNEA HORIZONTAL ---
-            # Usamos anchos proporcionales idénticos a los enlaces para mantener la simetría horizontal exacta
+            # --- BOTONES IDA, VUELTA Y FIN HORIZONTALES ---
             col_b1, col_b2, col_b3 = st.columns([2.2, 2.2, 1.6])
 
             label_ida = "✅ Ida" if reg_ida else "❌ Ida"
@@ -604,139 +705,6 @@ if menu == "Registrar / Actualizar Viajes":
                 info_paciente["listo"] = False
                 guardar_registro_db(fecha_str, nombre, info_paciente)
                 st.rerun()
-
-            # Panel de edición desplegable al hacer clic en el icono ✏️
-            if editar_click:
-              st.session_state[f"edit_open_{p_id}"] = not st.session_state.get(
-                  f"edit_open_{p_id}", False
-              )
-
-            if st.session_state.get(f"edit_open_{p_id}", False):
-              with st.container():
-                st.markdown("---")
-                st.markdown(f"**Editando a {nombre}:**")
-                edit_nombre = st.text_input(
-                    "Nombre y Apellido",
-                    value=p["nombre"],
-                    key=f"edit_nom_{p_id}",
-                )
-                edit_grupo = st.selectbox(
-                    "Grupo Asignado",
-                    [
-                        "Grupo 1 (Lunes, Miércoles, Viernes)",
-                        "Grupo 2 (Martes, Jueves, Sábados)",
-                    ],
-                    index=0 if p["grupo"] == "MWF" else 1,
-                    key=f"edit_grp_{p_id}",
-                )
-                edit_turno = st.selectbox(
-                    "Turno Habitual",
-                    TURNOS_DISPONIBLES,
-                    index=(
-                        TURNOS_DISPONIBLES.index(p["turno"])
-                        if p["turno"] in TURNOS_DISPONIBLES
-                        else 0
-                    ),
-                    key=f"edit_trn_{p_id}",
-                )
-                edit_maps = st.text_input(
-                    "Enlace de Google Maps",
-                    value=p.get("maps_link", ""),
-                    key=f"edit_map_{p_id}",
-                )
-
-                st.markdown("**📞 Teléfonos y Contactos:**")
-                contactos_actuales = p.get("contactos", [])
-                for idx_c, contacto in enumerate(contactos_actuales):
-                  cols_c = st.columns([3, 3, 1])
-                  cols_c[0].write(f"📞 {contacto['numero']}")
-                  cols_c[1].write(f"({contacto['relacion']})")
-                  if cols_c[2].button(
-                      "🗑️",
-                      key=f"del_c_{p_id}_{idx_c}",
-                      use_container_width=True,
-                  ):
-                    contactos_actuales.pop(idx_c)
-                    guardar_paciente_db(
-                        p_id,
-                        p["grupo"],
-                        p["nombre"],
-                        p["turno"],
-                        p["maps_link"],
-                        contactos_actuales,
-                    )
-                    st.rerun()
-
-                nuevo_num = st.text_input(
-                    "Nuevo número de teléfono", key=f"new_num_{p_id}"
-                )
-                nueva_rel = st.text_input(
-                    "Relación (Ej: Paciente, Hijo/a)", key=f"new_rel_{p_id}"
-                )
-
-                if st.button(
-                    "➕ Añadir Contacto",
-                    key=f"add_btn_{p_id}",
-                    use_container_width=True,
-                ):
-                  if nuevo_num.strip():
-                    contactos_actuales.append({
-                        "numero": nuevo_num.strip(),
-                        "relacion": (
-                            nueva_rel.strip()
-                            if nueva_rel.strip()
-                            else "Contacto"
-                        ),
-                    })
-                    guardar_paciente_db(
-                        p_id,
-                        p["grupo"],
-                        p["nombre"],
-                        p["turno"],
-                        p["maps_link"],
-                        contactos_actuales,
-                    )
-                    st.success("¡Contacto añadido!")
-                    st.rerun()
-                  else:
-                    st.error("Ingresa un número.")
-
-                col_save, col_del = st.columns([4, 1])
-                if col_save.button(
-                    "💾 Guardar Cambios",
-                    key=f"save_{p_id}",
-                    type="primary",
-                    use_container_width=True,
-                ):
-                  nuevo_grupo_val = (
-                      "MWF" if "Grupo 1" in edit_grupo else "TTS"
-                  )
-                  ok, err = guardar_paciente_db(
-                      p_id,
-                      nuevo_grupo_val,
-                      edit_nombre.strip(),
-                      edit_turno,
-                      edit_maps.strip(),
-                      contactos_actuales,
-                  )
-                  if ok:
-                    st.session_state[f"edit_open_{p_id}"] = False
-                    st.success("¡Guardado!")
-                    st.rerun()
-                  else:
-                    st.error(f"Error: {err}")
-
-                if col_del.button(
-                    "🗑️",
-                    key=f"del_p_{p_id}",
-                    use_container_width=True,
-                    help="Eliminar paciente",
-                ):
-                  ok, err = eliminar_paciente_db(p_id)
-                  if ok:
-                    st.rerun()
-                  else:
-                    st.error(f"Error: {err}")
 
       if fecha_str in datos and datos[fecha_str]:
         st.markdown("---")
