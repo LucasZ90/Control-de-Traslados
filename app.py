@@ -23,30 +23,88 @@ except Exception as e:
   )
   st.stop()
 
-# --- ESTILOS VISUALES COMPACTOS ---
+# --- ESTILOS VISUALES MINIMALISTAS Y TIPOGRAFÍA DE ALTA CALIDAD ---
 st.markdown("""
     <style>
-    .stApp {
-        background-color: #0E1117;
-        color: #FAFAFA;
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+    html, body, [class*="css"], .stApp {
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        background-color: #0D1117;
+        color: #E6EDF3;
     }
+    
     h1 {
-        color: #FFFFFF;
-        font-family: 'Inter', sans-serif;
-        font-weight: 700;
-        font-size: 1.8rem;
-        margin-bottom: 0.5rem;
+        font-size: 1.6rem !important;
+        font-weight: 700 !important;
+        color: #F0F6FC !important;
+        margin-bottom: 0.2rem !important;
+        letter-spacing: -0.02em;
     }
+
     h2, h3 {
-        color: #E2E8F0;
-        font-family: 'Inter', sans-serif;
+        font-size: 1.15rem !important;
+        font-weight: 600 !important;
+        color: #C9D1D9 !important;
+        margin-top: 1rem !important;
+        margin-bottom: 0.5rem !important;
     }
+
+    /* Tarjetas de pacientes estilo dashboard minimalista */
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        background-color: #161B22 !important;
+        border: 1px solid #30363D !important;
+        border-radius: 12px !important;
+        padding: 0.8rem 1rem !important;
+        margin-bottom: 0.6rem !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    /* Botones sutiles y modernos */
     div.stButton > button {
-        border-radius: 6px;
-        font-weight: 600;
-        padding: 0.3rem 0.1rem;
-        font-size: 0.8rem;
-        width: 100%;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        padding: 0.35rem 0.2rem !important;
+        font-size: 0.82rem !important;
+        border: 1px solid #30363D !important;
+        background-color: #21262D !important;
+        color: #C9D1D9 !important;
+        transition: all 0.2s ease-in-out;
+    }
+
+    div.stButton > button:hover {
+        border-color: #58A6FF !important;
+        color: #58A6FF !important;
+        background-color: #161B22 !important;
+    }
+
+    /* Links tipo píldoras/chips */
+    .chip-link {
+        display: inline-block;
+        background-color: #21262D;
+        border: 1px solid #30363D;
+        border-radius: 20px;
+        padding: 2px 10px;
+        font-size: 0.78rem;
+        color: #58A6FF !important;
+        text-decoration: none;
+        margin-right: 6px;
+        margin-bottom: 4px;
+        font-weight: 500;
+    }
+
+    /* Expander limpio */
+    .streamlit-expanderHeader {
+        font-weight: 600 !important;
+        font-size: 0.95rem !important;
+        color: #F0F6FC !important;
+    }
+    
+    /* Disminuir margen de columnas móviles */
+    [data-testid="column"] {
+        width: fit-content !important;
+        flex: 1 !important;
+        min-width: 0 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -295,7 +353,7 @@ def generar_excel_bytes(datos, es_diario=False):
 # Título principal limpio
 st.title("Gestión de Traslados")
 
-# --- NAVEGACIÓN SUPERIOR REDUCIDA (2 BOTONES) ---
+# --- NAVEGACIÓN SUPERIOR REDUCIDA ---
 if "menu_actual" not in st.session_state:
   st.session_state["menu_actual"] = "Registrar / Actualizar Viajes"
 
@@ -485,7 +543,7 @@ if menu == "Registrar / Actualizar Viajes":
       )
       st.metric(label="👥 Pacientes Pendientes Hoy", value=pendientes_totales)
 
-      # --- RENDERIZAR TURNOS CON TARJETAS COMPACTAS ---
+      # --- RENDERIZAR TURNOS CON ESTILOS MINIMALISTAS ---
       for turno_turno, titulo_turno in [
           ("05:40", "⏰ Turno 05:40 AM"),
           ("08:40", "⏰ Turno 08:40 AM"),
@@ -518,7 +576,7 @@ if menu == "Registrar / Actualizar Viajes":
             )
             finalizado_txt = " *[Finalizado]*" if is_listo else ""
 
-            # El nombre del paciente ahora funciona como un expandible desplegable para editar sus datos
+            # Desplegable minimalista al tocar el nombre
             with st.expander(
                 f"{estado_icono} {nombre}{finalizado_txt}", expanded=False
             ):
@@ -639,28 +697,25 @@ if menu == "Registrar / Actualizar Viajes":
                 else:
                   st.error(f"Error: {err}")
 
-            # Información de mapas y contactos en línea compacta debajo del nombre
+            # Enlaces interactivos en formato Píldoras / Chips
             maps_url = p.get("maps_link", "").strip()
             contactos = [c for c in p.get("contactos", []) if c.get("numero")]
-            partes_info = []
-            if maps_url:
-              partes_info.append(f"[📍 Ubicación]({maps_url})")
-            else:
-              partes_info.append("📍 *(Sin ubicación)*")
-            if contactos:
-              contactos_links = " | ".join([
-                  f"[📞 {c['relacion']}](tel:{c['numero'].replace(' ', '').replace('-', '')})"
-                  for c in contactos
-              ])
-              partes_info.append(contactos_links)
-            else:
-              partes_info.append("📞 *(Sin contacto)*")
-            st.markdown(
-                f"<small>{'  •  '.join(partes_info)}</small>",
-                unsafe_allow_html=True,
-            )
 
-            st.markdown("")
+            html_chips = "<div style='margin-bottom: 8px; margin-top: 4px;'>"
+            if maps_url:
+              html_chips += f"<a href='{maps_url}' target='_blank' class='chip-link'>📍 Ubicación</a>"
+            else:
+              html_chips += "<span style='font-size: 0.78rem; color: #8B949E; margin-right: 8px;'>📍 Sin ubicación</span>"
+
+            if contactos:
+              for c in contactos:
+                num_clean = c["numero"].replace(" ", "").replace("-", "")
+                html_chips += f"<a href='tel:{num_clean}' class='chip-link'>📞 {c['relacion']}</a>"
+            else:
+              html_chips += "<span style='font-size: 0.78rem; color: #8B949E;'>📞 Sin contacto</span>"
+
+            html_chips += "</div>"
+            st.markdown(html_chips, unsafe_allow_html=True)
 
             # --- BOTONES IDA, VUELTA Y FIN HORIZONTALES ---
             col_b1, col_b2, col_b3 = st.columns([2.2, 2.2, 1.6])
