@@ -463,31 +463,30 @@ if menu == "Registrar / Actualizar Viajes":
       grupo_sugerido = "MWF" if dia_semana in [0, 2, 4] else "TTS"
       st.info(
           f"📅 **{fecha_str}** ({nombre_dia}) — *Sugerencia: Grupo"
-          f" {'1 (MWF)' if grupo_sugerido == 'MWF' else '2 (TTS)'}*"
+          f" {'1 (MWF)' if grupo_sugerido == 'MWF' else '2 (TTS)}*"
       )
 
       if fecha_str not in datos:
         datos[fecha_str] = {}
 
-      # --- CONFIGURACIÓN RÁPIDA DE PACIENTES PARA ESTE DÍA ---
+      # --- CONFIGURACIÓN ESTRICTA DE PACIENTES PARA ESTE DÍA ---
       with st.expander(
           "⚙️ Seleccionar pacientes y turnos de hoy", expanded=False
       ):
         st.write(
-            "Marca los pacientes que viajan hoy y ajusta su turno si es"
-            " necesario:"
+            "Marca únicamente los pacientes que viajan hoy y ajusta su turno:"
         )
         for p in todos_pacientes:
           p_nombre = p["nombre"]
           p_id = p.get("id")
-          sugerido = (p_nombre in datos[fecha_str]) or (
-              p.get("grupo") == grupo_sugerido
-          )
+          
+          # Por defecto solo se marca si YA fue guardado explícitamente en los registros de esta fecha
+          ya_marcado_hoy = p_nombre in datos[fecha_str]
 
           cols_sel = st.columns([3, 2])
           seleccionado = cols_sel[0].checkbox(
               f"{p_nombre} ({p.get('turno','05:40')})",
-              value=sugerido,
+              value=ya_marcado_hoy,
               key=f"chk_sel_{fecha_str}_{p_id}",
           )
 
@@ -495,7 +494,7 @@ if menu == "Registrar / Actualizar Viajes":
               datos[fecha_str][p_nombre].get(
                   "turno_dia", p.get("turno", "05:40")
               )
-              if p_nombre in datos[fecha_str]
+              if ya_marcado_hoy
               else p.get("turno", "05:40")
           )
           idx_turno = (
@@ -543,14 +542,14 @@ if menu == "Registrar / Actualizar Viajes":
       )
       st.metric(label="👥 Pacientes Pendientes Hoy", value=pendientes_totales)
 
-      # --- RENDERIZAR TURNOS CON ORDENAMIENTO ESTRICTO (PENDIENTES ARRIBA, FINALIZADOS ABAJO) ---
+      # --- RENDERIZAR TURNOS EXCLUSIVAMENTE CON LOS SELECCIONADOS DEL DÍA ---
       for turno_turno, titulo_turno in [
           ("05:40", "⏰ Turno 05:40 AM"),
           ("08:40", "⏰ Turno 08:40 AM"),
       ]:
         st.markdown(f"### {titulo_turno}")
         
-        # Filtrar los pacientes que pertenecen a este turno en el día
+        # Filtrar únicamente los pacientes que el usuario marcó para hoy en este turno específico
         pacientes_turno = []
         for p in todos_pacientes:
           nombre_p = p["nombre"]
@@ -561,7 +560,7 @@ if menu == "Registrar / Actualizar Viajes":
         if not pacientes_turno:
           st.write("*(Sin pacientes programados en este turno)*")
         else:
-          # Ordenar estrictamente: False (no finalizados) primero, True (finalizados) al fondo
+          # Ordenar: Pendientes arriba, finalizados al fondo
           pacientes_turno.sort(
               key=lambda p: (
                   1 if pacientes_hoy_dict[p["nombre"]].get("listo", False) else 0,
@@ -585,7 +584,7 @@ if menu == "Registrar / Actualizar Viajes":
             )
             finalizado_txt = " *[Finalizado]*" if is_listo else ""
 
-            # Desplegable minimalista al tocar el nombre
+            # Desplegable minimalista al tocar el nombre para editar
             with st.expander(
                 f"{estado_icono} {nombre}{finalizado_txt}", expanded=False
             ):
@@ -734,7 +733,7 @@ if menu == "Registrar / Actualizar Viajes":
                 label_ida,
                 key=f"t_{turno_turno}_i_{p_id}_{fecha_str}",
                 use_container_width=True,
-                disabled=is_listo,  # Bloqueado si ya está finalizado
+                disabled=is_listo,
             ):
               info_paciente["ida"] = not reg_ida
               actualizar_valores_paciente(info_paciente)
@@ -746,7 +745,7 @@ if menu == "Registrar / Actualizar Viajes":
                 label_vuelta,
                 key=f"t_{turno_turno}_v_{p_id}_{fecha_str}",
                 use_container_width=True,
-                disabled=is_listo,  # Bloqueado si ya está finalizado
+                disabled=is_listo,
             ):
               info_paciente["vuelta"] = not reg_vuelta
               actualizar_valores_paciente(info_paciente)
