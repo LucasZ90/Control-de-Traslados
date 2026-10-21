@@ -463,7 +463,7 @@ if menu == "Registrar / Actualizar Viajes":
       grupo_sugerido = "MWF" if dia_semana in [0, 2, 4] else "TTS"
       st.info(
           f"📅 **{fecha_str}** ({nombre_dia}) — *Sugerencia: Grupo"
-          f" {'1 (MWF)' if grupo_sugerido == 'MWF' else '2 (TTS)}*"
+          f" {'1 (MWF)' if grupo_sugerido == 'MWF' else '2 (TTS)'}*"
       )
 
       if fecha_str not in datos:
@@ -480,7 +480,6 @@ if menu == "Registrar / Actualizar Viajes":
           p_nombre = p["nombre"]
           p_id = p.get("id")
           
-          # Por defecto solo se marca si YA fue guardado explícitamente en los registros de esta fecha
           ya_marcado_hoy = p_nombre in datos[fecha_str]
 
           cols_sel = st.columns([3, 2])
@@ -549,7 +548,6 @@ if menu == "Registrar / Actualizar Viajes":
       ]:
         st.markdown(f"### {titulo_turno}")
         
-        # Filtrar únicamente los pacientes que el usuario marcó para hoy en este turno específico
         pacientes_turno = []
         for p in todos_pacientes:
           nombre_p = p["nombre"]
@@ -560,7 +558,6 @@ if menu == "Registrar / Actualizar Viajes":
         if not pacientes_turno:
           st.write("*(Sin pacientes programados en este turno)*")
         else:
-          # Ordenar: Pendientes arriba, finalizados al fondo
           pacientes_turno.sort(
               key=lambda p: (
                   1 if pacientes_hoy_dict[p["nombre"]].get("listo", False) else 0,
@@ -584,7 +581,6 @@ if menu == "Registrar / Actualizar Viajes":
             )
             finalizado_txt = " *[Finalizado]*" if is_listo else ""
 
-            # Desplegable minimalista al tocar el nombre para editar
             with st.expander(
                 f"{estado_icono} {nombre}{finalizado_txt}", expanded=False
             ):
@@ -609,225 +605,4 @@ if menu == "Registrar / Actualizar Viajes":
                       if p["turno"] in TURNOS_DISPONIBLES
                       else 0
                   ),
-                  key=f"edit_trn_{p_id}",
-              )
-              edit_maps = st.text_input(
-                  "Enlace de Google Maps",
-                  value=p.get("maps_link", ""),
-                  key=f"edit_map_{p_id}",
-              )
-
-              st.markdown("**📞 Teléfonos y Contactos:**")
-              contactos_actuales = p.get("contactos", [])
-              for idx_c, contacto in enumerate(contactos_actuales):
-                cols_c = st.columns([3, 3, 1])
-                cols_c[0].write(f"📞 {contacto['numero']}")
-                cols_c[1].write(f"({contacto['relacion']})")
-                if cols_c[2].button(
-                    "🗑️", key=f"del_c_{p_id}_{idx_c}", use_container_width=True
-                ):
-                  contactos_actuales.pop(idx_c)
-                  guardar_paciente_db(
-                      p_id,
-                      p["grupo"],
-                      p["nombre"],
-                      p["turno"],
-                      p["maps_link"],
-                      contactos_actuales,
-                  )
-                  st.rerun()
-
-              nuevo_num = st.text_input(
-                  "Nuevo número de teléfono", key=f"new_num_{p_id}"
-              )
-              nueva_rel = st.text_input(
-                  "Relación (Ej: Paciente, Hijo/a)", key=f"new_rel_{p_id}"
-              )
-
-              if st.button(
-                  "➕ Añadir Contacto",
-                  key=f"add_btn_{p_id}",
-                  use_container_width=True,
-              ):
-                if nuevo_num.strip():
-                  contactos_actuales.append({
-                      "numero": nuevo_num.strip(),
-                      "relacion": (
-                          nueva_rel.strip()
-                          if nueva_rel.strip()
-                          else "Contacto"
-                      ),
-                  })
-                  guardar_paciente_db(
-                      p_id,
-                      p["grupo"],
-                      p["nombre"],
-                      p["turno"],
-                      p["maps_link"],
-                      contactos_actuales,
-                  )
-                  st.success("¡Contacto añadido!")
-                  st.rerun()
-                else:
-                  st.error("Ingresa un número.")
-
-              col_save, col_del = st.columns([4, 1])
-              if col_save.button(
-                  "💾 Guardar Cambios",
-                  key=f"save_{p_id}",
-                  type="primary",
-                  use_container_width=True,
-              ):
-                nuevo_grupo_val = "MWF" if "Grupo 1" in edit_grupo else "TTS"
-                ok, err = guardar_paciente_db(
-                    p_id,
-                    nuevo_grupo_val,
-                    edit_nombre.strip(),
-                    edit_turno,
-                    edit_maps.strip(),
-                    contactos_actuales,
-                )
-                if ok:
-                  st.success("¡Guardado!")
-                  st.rerun()
-                else:
-                  st.error(f"Error: {err}")
-
-              if col_del.button(
-                  "🗑️",
-                  key=f"del_p_{p_id}",
-                  use_container_width=True,
-                  help="Eliminar paciente",
-              ):
-                ok, err = eliminar_paciente_db(p_id)
-                if ok:
-                  st.rerun()
-                else:
-                  st.error(f"Error: {err}")
-
-            # Enlaces interactivos en formato Píldoras / Chips
-            maps_url = p.get("maps_link", "").strip()
-            contactos = [c for c in p.get("contactos", []) if c.get("numero")]
-
-            html_chips = "<div style='margin-bottom: 8px; margin-top: 4px;'>"
-            if maps_url:
-              html_chips += f"<a href='{maps_url}' target='_blank' class='chip-link'>📍 Ubicación</a>"
-            else:
-              html_chips += "<span style='font-size: 0.78rem; color: #8B949E; margin-right: 8px;'>📍 Sin ubicación</span>"
-
-            if contactos:
-              for c in contactos:
-                num_clean = c["numero"].replace(" ", "").replace("-", "")
-                html_chips += f"<a href='tel:{num_clean}' class='chip-link'>📞 {c['relacion']}</a>"
-            else:
-              html_chips += "<span style='font-size: 0.78rem; color: #8B949E;'>📞 Sin contacto</span>"
-
-            html_chips += "</div>"
-            st.markdown(html_chips, unsafe_allow_html=True)
-
-            # --- BOTONES IDA, VUELTA Y FIN HORIZONTALES ---
-            col_b1, col_b2, col_b3 = st.columns([2.2, 2.2, 1.6])
-
-            label_ida = "✅ Ida" if reg_ida else "❌ Ida"
-            if col_b1.button(
-                label_ida,
-                key=f"t_{turno_turno}_i_{p_id}_{fecha_str}",
-                use_container_width=True,
-                disabled=is_listo,
-            ):
-              info_paciente["ida"] = not reg_ida
-              actualizar_valores_paciente(info_paciente)
-              guardar_registro_db(fecha_str, nombre, info_paciente)
-              st.rerun()
-
-            label_vuelta = "✅ Vuelta" if reg_vuelta else "❌ Vuelta"
-            if col_b2.button(
-                label_vuelta,
-                key=f"t_{turno_turno}_v_{p_id}_{fecha_str}",
-                use_container_width=True,
-                disabled=is_listo,
-            ):
-              info_paciente["vuelta"] = not reg_vuelta
-              actualizar_valores_paciente(info_paciente)
-              guardar_registro_db(fecha_str, nombre, info_paciente)
-              st.rerun()
-
-            if not is_listo:
-              if col_b3.button(
-                  "🏁 Fin",
-                  key=f"t_{turno_turno}_f_{p_id}_{fecha_str}",
-                  use_container_width=True,
-              ):
-                info_paciente["listo"] = True
-                guardar_registro_db(fecha_str, nombre, info_paciente)
-                st.rerun()
-            else:
-              if col_b3.button(
-                  "🔄 Abrir",
-                  key=f"t_{turno_turno}_r_{p_id}_{fecha_str}",
-                  use_container_width=True,
-              ):
-                info_paciente["listo"] = False
-                guardar_registro_db(fecha_str, nombre, info_paciente)
-                st.rerun()
-
-      if fecha_str in datos and datos[fecha_str]:
-        st.markdown("---")
-        datos_del_dia = {fecha_str: datos[fecha_str]}
-        excel_bytes_dia = generar_excel_bytes(datos_del_dia, es_diario=True)
-        nombre_archivo_dia = (
-            f"resumen_{fecha_seleccionada.strftime('%d_%m_%Y')}.xlsx"
-        )
-        st.download_button(
-            label=f"📊 Descargar Resumen del Día ({fecha_str})",
-            data=excel_bytes_dia,
-            file_name=nombre_archivo_dia,
-            mime=(
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            ),
-            type="primary",
-            use_container_width=True,
-        )
-
-elif menu == "Resumen Mensual":
-  st.header("📊 Resumen Mensual y Total a Cobrar")
-
-  datos_validos = {}
-  for f_str, reg in datos.items():
-    try:
-      if datetime.strptime(f_str, "%d/%m/%Y").date() >= date(2026, 10, 14):
-        datos_validos[f_str] = reg
-    except ValueError:
-      pass
-
-  if not datos_validos:
-    st.info(
-        "No hay registros de traslados (comenzando estrictamente desde el"
-        " 14/10/2026)."
-    )
-  else:
-    total_mes = 0
-    for fecha, pacientes_dia in sorted(datos_validos.items()):
-      with st.expander(f"📅 Fecha: {fecha}"):
-        total_dia = 0
-        for nombre, info in pacientes_dia.items():
-          st.write(f"- **{nombre}**: {info['estado']} (${info['valor']:,})")
-          total_dia += info["valor"]
-        st.markdown(f"**Total del día: ${total_dia:,}**")
-        total_mes += total_dia
-
-    st.markdown("---")
-    st.subheader(f"💰 TOTAL GENERAL ACUMULADO: ${total_mes:,}")
-
-    st.markdown("")
-    excel_bytes_mes = generar_excel_bytes(datos_validos, es_diario=False)
-    st.download_button(
-        label="📊 Descargar Resumen Mensual en Excel (.xlsx)",
-        data=excel_bytes_mes,
-        file_name="control_dialisis_resumen_mensual.xlsx",
-        mime=(
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        ),
-        type="primary",
-        use_container_width=True,
-    )
+                  key=f"
