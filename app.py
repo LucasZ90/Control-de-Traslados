@@ -366,14 +366,11 @@ with col_nav2:
     st.session_state["menu_actual"] = "Resumen Mensual"
 
 menu = st.session_state["menu_actual"]
-st.markdown("---")
 
 datos = cargar_registros_db()
 todos_pacientes = cargar_pacientes_db()
 
 if menu == "Registrar / Actualizar Viajes":
-  st.subheader("📋 Registro Diario")
-
   # Botón superior para agregar nuevo paciente directamente
   with st.expander("➕ Agregar Nuevo Paciente al Sistema"):
     nuevo_nombre = st.text_input(
@@ -451,21 +448,6 @@ if menu == "Registrar / Actualizar Viajes":
     if dia_semana == 6:
       st.warning("⚠️ Los domingos no hay servicio programado.")
     else:
-      nombre_dia = [
-          "Lunes",
-          "Martes",
-          "Miércoles",
-          "Jueves",
-          "Viernes",
-          "Sábado",
-          "Domingo",
-      ][dia_semana]
-      grupo_sugerido = "MWF" if dia_semana in [0, 2, 4] else "TTS"
-      st.info(
-          f"📅 **{fecha_str}** ({nombre_dia}) — *Sugerencia: Grupo"
-          f" {'1 (MWF)' if grupo_sugerido == 'MWF' else '2 (TTS)'}*"
-      )
-
       if fecha_str not in datos:
         datos[fecha_str] = {}
 
@@ -771,7 +753,6 @@ if menu == "Registrar / Actualizar Viajes":
                 st.rerun()
 
       if fecha_str in datos and datos[fecha_str]:
-        st.markdown("---")
         datos_del_dia = {fecha_str: datos[fecha_str]}
         excel_bytes_dia = generar_excel_bytes(datos_del_dia, es_diario=True)
         nombre_archivo_dia = (
