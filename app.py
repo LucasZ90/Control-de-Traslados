@@ -269,6 +269,7 @@ def actualizar_valores_paciente(info):
   if reg_ida and reg_vuelta:
     info["estado"] = "Completo (Ida y Vuelta)"
     info["valor"] = TARIFA_COMPLETO
+    info["listo"] = True  # <--- Se finaliza automáticamente al tener ambos
   elif reg_ida or reg_vuelta:
     info["estado"] = "Medio (Un solo tramo)"
     info["valor"] = TARIFA_MEDIO
