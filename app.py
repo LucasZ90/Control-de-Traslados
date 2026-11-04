@@ -155,8 +155,8 @@ def cargar_pacientes_db():
         }).execute()
       response = supabase.table("pacientes").select("*").execute()
       data = response.data
-    return data
-  except Exception as e:
+    return data if data else []
+  except Exception:
     fallback = []
     for i, p in enumerate(DEFAULT_MWF):
       fallback.append({**p, "id": f"def_mwf_{i}", "grupo": "MWF"})
@@ -207,17 +207,20 @@ def cargar_registros_db():
     datos = {}
     if data:
       for row in data:
-        f_str = row["fecha"]
+        f_str = row.get("fecha")
+        nombre = row.get("nombre")
+        if not f_str or not nombre:
+          continue
         try:
           if datetime.strptime(f_str, "%d/%m/%Y").date() >= date(2026, 10, 14):
             if f_str not in datos:
               datos[f_str] = {}
-            datos[f_str][row["nombre"]] = {
-                "ida": row["ida"],
-                "vuelta": row["vuelta"],
-                "listo": row["listo"],
-                "estado": row["estado"],
-                "valor": row["valor"],
+            datos[f_str][nombre] = {
+                "ida": bool(row.get("ida", False)),
+                "vuelta": bool(row.get("vuelta", False)),
+                "listo": bool(row.get("listo", False)),
+                "estado": row.get("estado", "Ausente (No viajó)"),
+                "valor": int(row.get("valor", 0) or 0),
                 "turno_dia": row.get("turno_dia", "05:40"),
             }
         except ValueError:
@@ -314,34 +317,19 @@ def generar_excel_bytes(datos, es_diario=False):
   for fecha, pacientes_dia in sorted(
       datos.items(), key=lambda x: datetime.strptime(x[0], "%d/%m/%Y")
   ):
-    try:
-      if datetime.strptime(fecha, "%d/%m/%Y").date() < date(2026, 10, 14):
-        continue
-    except ValueError:
-      continue
-
     for nombre, info in pacientes_dia.items():
       ws.cell(row=fila_actual, column=1, value=fecha).border = thin_border
       ws.cell(row=fila_actual, column=2, value=nombre).border = thin_border
-      ws.cell(row=fila_actual, column=3, value=info["estado"]).border = (
-          thin_border
-      )
+      ws.cell(row=fila_actual, column=3, value=info["estado"]).border = thin_border
 
-      valor_num = (
-          int(info["valor"])
-          if isinstance(info["valor"], (int, float, str))
-          and str(info["valor"]).isdigit()
-          else 0
-      )
+      valor_num = int(info["valor"] or 0)
       celda_val = ws.cell(row=fila_actual, column=4, value=valor_num)
       celda_val.border = thin_border
       celda_val.number_format = '"$"#,##0'
 
       fila_actual += 1
 
-  ws.cell(row=fila_actual, column=3, value="TOTAL GENERAL:").font = Font(
-      bold=True
-  )
+  ws.cell(row=fila_actual, column=3, value="TOTAL GENERAL:").font = Font(bold=True)
   celda_total = ws.cell(
       row=fila_actual, column=4, value=f"=SUM(D2:D{fila_actual-1})"
   )
@@ -590,18 +578,19 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
       c = ws.cell(row=fila, column=idx, value=val_num)
       c.border = thin_border
       c.alignment = Alignment(horizontal="center")
+      if val_num is not None:
+        c.number_format = '0.0'
 
     col_letra_inicio = openpyxl.utils.get_column_letter(3)
     col_letra_fin = openpyxl.utils.get_column_letter(len(fechas_g1) + 2)
     col_letra_tv = openpyxl.utils.get_column_letter(col_total_viajes_g1)
 
-    # Fórmula exacta de suma de viajes de la fila
     celda_tv = ws.cell(row=fila, column=col_total_viajes_g1, value=f"=SUM({col_letra_inicio}{fila}:{col_letra_fin}{fila})")
     celda_tv.border = thin_border
     celda_tv.alignment = Alignment(horizontal="center")
     celda_tv.font = Font(bold=True)
+    celda_tv.number_format = '0.0'
 
-    # Multiplicación directa por 5000 sobre la celda del total de viajes
     celda_tp = ws.cell(row=fila, column=col_total_pesos_g1, value=f"={col_letra_tv}{fila}*5000")
     celda_tp.border = thin_border
     celda_tp.alignment = Alignment(horizontal="right")
@@ -611,7 +600,6 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
     fila += 1
   fin_g1 = fila - 1
 
-  # Fila de totales inferiores Grupo 1
   ws.cell(row=fila, column=2, value="TOTAL GRUPO 1:").font = total_font
   ws.cell(row=fila, column=2).fill = total_fill
   ws.cell(row=fila, column=2).border = thin_border
@@ -623,6 +611,7 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
     c_tot.font = total_font
     c_tot.alignment = Alignment(horizontal="center")
     c_tot.border = thin_border
+    c_tot.number_format = '0.0'
 
   col_tv_letra_g1 = openpyxl.utils.get_column_letter(col_total_viajes_g1)
   c_tot_tv = ws.cell(row=fila, column=col_total_viajes_g1, value=f"=SUM({col_tv_letra_g1}{inicio_g1}:{col_tv_letra_g1}{fin_g1})")
@@ -630,6 +619,7 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
   c_tot_tv.font = total_font
   c_tot_tv.alignment = Alignment(horizontal="center")
   c_tot_tv.border = thin_border
+  c_tot_tv.number_format = '0.0'
 
   col_tp_letra_g1 = openpyxl.utils.get_column_letter(col_total_pesos_g1)
   c_tot_tp = ws.cell(row=fila, column=col_total_pesos_g1, value=f"=SUM({col_tp_letra_g1}{inicio_g1}:{col_tp_letra_g1}{fin_g1})")
@@ -709,6 +699,8 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
       c = ws.cell(row=fila_datos, column=idx, value=val_num)
       c.border = thin_border
       c.alignment = Alignment(horizontal="center")
+      if val_num is not None:
+        c.number_format = '0.0'
 
     col_letra_inicio_g2 = openpyxl.utils.get_column_letter(3)
     col_letra_fin_g2 = openpyxl.utils.get_column_letter(len(fechas_g2) + 2)
@@ -718,6 +710,7 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
     celda_tv.border = thin_border
     celda_tv.alignment = Alignment(horizontal="center")
     celda_tv.font = Font(bold=True)
+    celda_tv.number_format = '0.0'
 
     celda_tp = ws.cell(row=fila_datos, column=col_total_pesos_g2, value=f"={col_letra_tv_g2}{fila_datos}*5000")
     celda_tp.border = thin_border
@@ -728,7 +721,6 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
     fila_datos += 1
   fin_g2 = fila_datos - 1
 
-  # Fila de totales inferiores Grupo 2
   ws.cell(row=fila_datos, column=2, value="TOTAL GRUPO 2:").font = total_font
   ws.cell(row=fila_datos, column=2).fill = total_fill
   ws.cell(row=fila_datos, column=2).border = thin_border
@@ -740,6 +732,7 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
     c_tot.font = total_font
     c_tot.alignment = Alignment(horizontal="center")
     c_tot.border = thin_border
+    c_tot.number_format = '0.0'
 
   col_tv_letra_g2 = openpyxl.utils.get_column_letter(col_total_viajes_g2)
   c_tot_tv = ws.cell(row=fila_datos, column=col_total_viajes_g2, value=f"=SUM({col_tv_letra_g2}{inicio_g2}:{col_tv_letra_g2}{fin_g2})")
@@ -747,6 +740,7 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
   c_tot_tv.font = total_font
   c_tot_tv.alignment = Alignment(horizontal="center")
   c_tot_tv.border = thin_border
+  c_tot_tv.number_format = '0.0'
 
   col_tp_letra_g2 = openpyxl.utils.get_column_letter(col_total_pesos_g2)
   c_tot_tp = ws.cell(row=fila_datos, column=col_total_pesos_g2, value=f"=SUM({col_tp_letra_g2}{inicio_g2}:{col_tp_letra_g2}{fin_g2})")
@@ -1169,4 +1163,265 @@ if menu == "Registrar / Actualizar Viajes":
                   use_container_width=True,
               ):
                 info_paciente["listo"] = False
-                guardar_
+                guardar_registro_db(fecha_str, nombre, info_paciente)
+                st.rerun()
+
+      if fecha_str in datos and datos[fecha_str]:
+        datos_del_dia = {fecha_str: datos[fecha_str]}
+        excel_bytes_dia = generar_excel_bytes(datos_del_dia, es_diario=True)
+        nombre_archivo_dia = (
+            f"resumen_{fecha_seleccionada.strftime('%d_%m_%Y')}.xlsx"
+        )
+        st.download_button(
+            label=f"📊 Descargar Resumen del Día ({fecha_str})",
+            data=excel_bytes_dia,
+            file_name=nombre_archivo_dia,
+            mime=(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ),
+            type="primary",
+            use_container_width=True,
+        )
+
+elif menu == "Resumen Mensual":
+  st.header("📊 Resumen por Meses y Ganancias")
+
+  meses_agrupados = {}
+  for f_str, reg in datos.items():
+    try:
+      f_obj = datetime.strptime(f_str, "%d/%m/%Y")
+      if f_obj.date() >= date(2026, 10, 14):
+        mes_key_orden = f_obj.strftime("%Y-%m")
+        nombres_meses = {
+            "01": "Enero", "02": "Febrero", "03": "Marzo", "04": "Abril",
+            "05": "Mayo", "06": "Junio", "07": "Julio", "08": "Agosto",
+            "09": "Septiembre", "10": "Octubre", "11": "Noviembre", "12": "Diciembre"
+        }
+        anio, mes_num = mes_key_orden.split("-")
+        nombre_mes_amigable = f"{nombres_meses[mes_num]} {anio}"
+
+        if mes_key_orden not in meses_agrupados:
+          meses_agrupados[mes_key_orden] = {
+              "nombre_amigable": nombre_mes_amigable,
+              "registros_dias": {}
+          }
+        meses_agrupados[mes_key_orden]["registros_dias"][f_str] = reg
+    except ValueError:
+      pass
+
+  if not meses_agrupados:
+    st.info(
+        "No hay registros de traslados (comenzando desde el 14/10/2026)."
+    )
+  else:
+    for mes_key in sorted(meses_agrupados.keys(), reverse=True):
+      info_mes = meses_agrupados[mes_key]
+      nombre_mes = info_mes["nombre_amigable"]
+      registros_dias = info_mes["registros_dias"]
+
+      total_mes = 0
+      for fecha, pacientes_dia in registros_dias.items():
+        for nombre, info in pacientes_dia.items():
+          total_mes += int(info.get("valor", 0) or 0)
+
+      with st.expander(f"📅 Mes: {nombre_mes} — Total: ${total_mes:,}", expanded=(mes_key == max(meses_agrupados.keys()))):
+        for fecha, pacientes_dia in sorted(
+            registros_dias.items(), key=lambda x: datetime.strptime(x[0], "%d/%m/%Y")
+        ):
+          st.markdown(f"**Día: {fecha}**")
+          total_dia = 0
+          for nombre, info in pacientes_dia.items():
+            val_v = int(info.get("valor", 0) or 0)
+            st.write(f"- {nombre}: {info.get('estado', '')} (${val_v:,})")
+            total_dia += val_v
+          st.markdown(f"_Subtotal día: ${total_dia:,}_")
+          st.markdown("---")
+
+        st.markdown(f"### 💰 Total acumulado de {nombre_mes}: ${total_mes:,}")
+
+        excel_bytes_mes = generar_excel_bytes(registros_dias, es_diario=False)
+        st.download_button(
+            label=f"📊 Descargar reporte de {nombre_mes} (.xlsx)",
+            data=excel_bytes_mes,
+            file_name=f"control_dialisis_{mes_key}.xlsx",
+            mime=(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ),
+            type="primary",
+            key=f"dl_mes_{mes_key}",
+            use_container_width=True,
+        )
+
+elif menu == "Historial de Pacientes":
+  st.header("📂 Historial Detallado de Pacientes")
+  st.write("Consulta los días específicos que viajó cada paciente, sus totales y exporta los informes.")
+
+  historial_detalle = []
+  resumen_pacientes = {}
+
+  for p in todos_pacientes:
+    nombre_p = p.get("nombre", "")
+    if nombre_p:
+      resumen_pacientes[nombre_p] = {
+          "completos": 0, "medios": 0, "ausencias": 0, "total_viajes": 0, "total_monto": 0
+      }
+
+  for fecha, pacientes_dia in sorted(
+      datos.items(), key=lambda x: datetime.strptime(x[0], "%d/%m/%Y")
+  ):
+    for nombre, info in pacientes_dia.items():
+      if nombre not in resumen_pacientes:
+        resumen_pacientes[nombre] = {
+            "completos": 0, "medios": 0, "ausencias": 0, "total_viajes": 0, "total_monto": 0
+        }
+      
+      estado = info.get("estado", "")
+      valor = int(info.get("valor", 0) or 0)
+
+      if "Completo" in estado:
+        resumen_pacientes[nombre]["completos"] += 1
+        resumen_pacientes[nombre]["total_viajes"] += 1
+      elif "Medio" in estado:
+        resumen_pacientes[nombre]["medios"] += 1
+        resumen_pacientes[nombre]["total_viajes"] += 1
+      else:
+        resumen_pacientes[nombre]["ausencias"] += 1
+
+      resumen_pacientes[nombre]["total_monto"] += valor
+
+      historial_detalle.append({
+          "nombre": nombre,
+          "fecha": fecha,
+          "estado": estado,
+          "valor": valor
+      })
+
+  modo_descarga = st.radio(
+      "Selecciona el alcance del reporte:",
+      ["Todos juntos", "Paciente individual"],
+      horizontal=True
+  )
+
+  paciente_seleccionado = None
+  if modo_descarga == "Paciente individual":
+    nombres_disponibles = sorted(list(resumen_pacientes.keys()))
+    if nombres_disponibles:
+      paciente_seleccionado = st.selectbox("Elige al paciente", nombres_disponibles)
+    else:
+      st.warning("No hay pacientes registrados.")
+
+  st.markdown("---")
+
+  if modo_descarga == "Todos juntos":
+    for nombre, datos_p in sorted(resumen_pacientes.items()):
+      with st.container(border=True):
+        st.markdown(f"### 👤 {nombre}")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("🟢 Completos", datos_p["completos"])
+        col2.metric("🟡 Medios", datos_p["medios"])
+        col3.metric("🚗 Total Viajes", datos_p["total_viajes"])
+        col4.metric("💰 Acumulado", f"${datos_p['total_monto']:,}")
+
+        viajes_paciente = [item for item in historial_detalle if item["nombre"] == nombre]
+        if viajes_paciente:
+          with st.expander(f"Ver días y fechas de {nombre} ({len(viajes_paciente)} registros)"):
+            for v in viajes_paciente:
+              st.write(f"• **{v['fecha']}** — {v['estado']} (*${v['valor']:,}*)")
+        else:
+          st.write("*(Sin registros de viajes)*")
+
+    excel_bytes = generar_excel_historial_detallado(historial_detalle)
+    pdf_bytes = generar_pdf_historial_detallado(historial_detalle, "Historial Detallado de Todos los Pacientes")
+
+    col_dl1, col_dl2 = st.columns(2)
+    with col_dl1:
+      st.download_button(
+          label="📊 Descargar Excel (Todos)",
+          data=excel_bytes,
+          file_name="historial_detallado_todos.xlsx",
+          mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          type="primary",
+          use_container_width=True
+      )
+    with col_dl2:
+      st.download_button(
+          label="📄 Descargar PDF (Todos)",
+          data=pdf_bytes,
+          file_name="historial_detallado_todos.pdf",
+          mime="application/pdf",
+          type="primary",
+          use_container_width=True
+      )
+
+  else:
+    if paciente_seleccionado:
+      datos_p = resumen_pacientes[paciente_seleccionado]
+      with st.container(border=True):
+        st.markdown(f"### 👤 {paciente_seleccionado}")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("🟢 Días Completos", datos_p["completos"])
+        col2.metric("🟡 Días Medios", datos_p["medios"])
+        col3.metric("🚗 Total Días Viajados", datos_p["total_viajes"])
+        col4.metric("💰 Total Acumulado", f"${datos_p['total_monto']:,}")
+
+        st.markdown("#### 📅 Fechas y detalles de sus viajes:")
+        viajes_paciente = [item for item in historial_detalle if item["nombre"] == paciente_seleccionado]
+        if viajes_paciente:
+          for v in viajes_paciente:
+            st.write(f"• **{v['fecha']}** — {v['estado']} (*${v['valor']:,}*)")
+        else:
+          st.write("*(Sin registros de viajes)*")
+
+      detalle_individual = [item for item in historial_detalle if item["nombre"] == paciente_seleccionado]
+      excel_bytes = generar_excel_historial_detallado(detalle_individual)
+      pdf_bytes = generar_pdf_historial_detallado(detalle_individual, f"Historial Detallado del Paciente: {paciente_seleccionado}")
+
+      col_dl1, col_dl2 = st.columns(2)
+      with col_dl1:
+        st.download_button(
+            label=f"📊 Descargar Excel ({paciente_seleccionado})",
+            data=excel_bytes,
+            file_name=f"historial_{paciente_seleccionado.replace(' ', '_')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary",
+            use_container_width=True
+        )
+      with col_dl2:
+        st.download_button(
+            label=f"📄 Descargar PDF ({paciente_seleccionado})",
+            data=pdf_bytes,
+            file_name=f"historial_{paciente_seleccionado.replace(' ', '_')}.pdf",
+            mime="application/pdf",
+            type="primary",
+            use_container_width=True
+        )
+
+elif menu == "Planilla Matricial":
+  st.header("📅 Planilla de Control Estilo Matriz")
+  st.write("Selecciona el mes y año para generar y descargar la planilla en formato de cuadrícula.")
+
+  col_m1, col_m2 = st.columns(2)
+  
+  meses_opciones = {
+      "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4,
+      "Mayo": 5, "Junio": 6, "Julio": 7, "Agosto": 8,
+      "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
+  }
+  
+  with col_m1:
+    mes_nombre_elegido = st.selectbox("Mes", list(meses_opciones.keys()), index=10)
+  with col_m2:
+    anio_elegido = st.selectbox("Año", [2026, 2027, 2028], index=0)
+
+  mes_num_elegido = meses_opciones[mes_nombre_elegido]
+
+  excel_planilla = generar_excel_planilla_matricial(datos, todos_pacientes, anio_elegido, mes_num_elegido)
+  
+  st.download_button(
+      label=f"📥 Descargar Planilla Matricial ({mes_nombre_elegido} {anio_elegido}) en Excel (.xlsx)",
+      data=excel_planilla,
+      file_name=f"planilla_asistencia_{mes_nombre_elegido.lower()}_{anio_elegido}.xlsx",
+      mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      type="primary",
+      use_container_width=True
+  )
