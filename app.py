@@ -585,7 +585,6 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
         reg_ida = info_reg.get("ida", False)
         reg_vuelta = info_reg.get("vuelta", False)
 
-        # Regla estricta basada exclusivamente en tramos individuales marcados
         if reg_ida and reg_vuelta:
           val_celda = 1.0
         elif reg_ida or reg_vuelta:
@@ -599,15 +598,17 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
 
     col_letra_inicio = openpyxl.utils.get_column_letter(3)
     col_letra_fin = openpyxl.utils.get_column_letter(len(fechas_g1) + 2)
+    col_letra_tv = openpyxl.utils.get_column_letter(col_total_viajes_g1)
 
+    # SUMA DE VIAJES: =SUM(C3:Q3)
     celda_tv = ws.cell(row=fila, column=col_total_viajes_g1, value=f"=SUM({col_letra_inicio}{fila}:{col_letra_fin}{fila})")
     celda_tv.border = thin_border
     celda_tv.alignment = Alignment(horizontal="center")
     celda_tv.font = Font(bold=True)
     celda_tv.number_format = '0.0'
 
-    # Multiplicamos el total de viajes por la tarifa de viaje completo ($5000)
-    celda_tp = ws.cell(row=fila, column=col_total_pesos_g1, value=f"={openpyxl.utils.get_column_letter(col_total_viajes_g1)}{fila}*{TARIFA_COMPLETO}")
+    # TOTAL EN PESOS: =R3*5000 (Multiplica los viajes sumados por 5000)
+    celda_tp = ws.cell(row=fila, column=col_total_pesos_g1, value=f"={col_letra_tv}{fila}*{TARIFA_COMPLETO}")
     celda_tp.border = thin_border
     celda_tp.alignment = Alignment(horizontal="right")
     celda_tp.font = Font(bold=True)
@@ -616,6 +617,7 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
     fila += 1
   fin_g1 = fila - 1
 
+  # TOTAL GRUPO 1
   ws.cell(row=fila, column=2, value="TOTAL GRUPO 1:").font = total_font
   ws.cell(row=fila, column=2).fill = total_fill
   ws.cell(row=fila, column=2).border = thin_border
@@ -718,6 +720,7 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
 
     col_letra_inicio_g2 = openpyxl.utils.get_column_letter(3)
     col_letra_fin_g2 = openpyxl.utils.get_column_letter(len(fechas_g2) + 2)
+    col_letra_tv_g2 = openpyxl.utils.get_column_letter(col_total_viajes_g2)
 
     celda_tv = ws.cell(row=fila_datos, column=col_total_viajes_g2, value=f"=SUM({col_letra_inicio_g2}{fila_datos}:{col_letra_fin_g2}{fila_datos})")
     celda_tv.border = thin_border
@@ -725,7 +728,7 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
     celda_tv.font = Font(bold=True)
     celda_tv.number_format = '0.0'
 
-    celda_tp = ws.cell(row=fila_datos, column=col_total_pesos_g2, value=f"={openpyxl.utils.get_column_letter(col_total_viajes_g2)}{fila_datos}*{TARIFA_COMPLETO}")
+    celda_tp = ws.cell(row=fila_datos, column=col_total_pesos_g2, value=f"={col_letra_tv_g2}{fila_datos}*{TARIFA_COMPLETO}")
     celda_tp.border = thin_border
     celda_tp.alignment = Alignment(horizontal="right")
     celda_tp.font = Font(bold=True)
@@ -734,6 +737,7 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
     fila_datos += 1
   fin_g2 = fila_datos - 1
 
+  # TOTAL GRUPO 2
   ws.cell(row=fila_datos, column=2, value="TOTAL GRUPO 2:").font = total_font
   ws.cell(row=fila_datos, column=2).fill = total_fill
   ws.cell(row=fila_datos, column=2).border = thin_border
