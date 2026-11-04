@@ -502,10 +502,9 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
       bottom=Side(style="thin", color="D3D3D3"),
   )
 
-  mwf_nombres = [p["nombre"] for p in todos_pacs if p.get("grupo"] == "MWF"]
+  mwf_nombres = [p["nombre"] for p in todos_pacs if p.get("grupo") == "MWF"]
   tts_nombres = [p["nombre"] for p in todos_pacs if p.get("grupo") == "TTS"]
 
-  # Obtener los días del mes seleccionado dinámicamente
   dias_mes_total = calendar.monthrange(anio_sel, mes_sel)[1]
   
   fechas_g1 = []
@@ -518,11 +517,9 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
   for dia in range(1, dias_mes_total + 1):
     dt_obj = date(anio_sel, mes_sel, dia)
     w_day = dt_obj.weekday()
-    # Grupo 1: Lunes(0), Miércoles(2), Viernes(4)
     if w_day in [0, 2, 4]:
       fechas_g1.append(dia)
       dias_g1.append(letras_dias[w_day])
-    # Grupo 2: Martes(1), Jueves(3), Sábados(5)
     elif w_day in [1, 3, 5]:
       fechas_g2.append(dia)
       dias_g2.append(letras_dias[w_day])
@@ -1264,7 +1261,7 @@ elif menu == "Planilla Matricial":
   }
   
   with col_m1:
-    mes_nombre_elegido = st.selectbox("Mes", list(meses_opciones.keys()), index=10) # Predeterminado Noviembre
+    mes_nombre_elegido = st.selectbox("Mes", list(meses_opciones.keys()), index=10)
   with col_m2:
     anio_elegido = st.selectbox("Año", [2026, 2027, 2028], index=0)
 
