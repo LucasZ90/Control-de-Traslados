@@ -524,6 +524,10 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
       fechas_g2.append(dia)
       dias_g2.append(letras_dias[w_day])
 
+  # Columnas adicionales al final para Totales: Total Viajes y Total en Pesos
+  col_total_viajes = len(fechas_g1) + 3
+  col_total_pesos = len(fechas_g1) + 4
+
   # --- TABLA 1: GRUPO 1 ---
   titulo_tabla_1 = f"{nombre_mes_str.upper()}-{anio_sel}"
   ws.cell(row=1, column=1, value=titulo_tabla_1).font = Font(bold=True)
@@ -544,24 +548,66 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
     cell.alignment = Alignment(horizontal="center")
     cell.border = thin_border
 
+  # Cabeceras de totales Grupo 1
+  c_tv1 = ws.cell(row=1, column=col_total_viajes, value="Total Viajes")
+  c_tv1.fill = header_fill
+  c_tv1.font = header_font
+  c_tv1.alignment = Alignment(horizontal="center")
+  c_tv1.border = thin_border
+  ws.cell(row=2, column=col_total_viajes, value="Viajes").fill = header_fill
+  ws.cell(row=2, column=col_total_viajes).font = header_font
+  ws.cell(row=2, column=col_total_viajes).alignment = Alignment(horizontal="center")
+  ws.cell(row=2, column=col_total_viajes).border = thin_border
+
+  c_tp1 = ws.cell(row=1, column=col_total_pesos, value="Total en Pesos")
+  c_tp1.fill = header_fill
+  c_tp1.font = header_font
+  c_tp1.alignment = Alignment(horizontal="center")
+  c_tp1.border = thin_border
+  ws.cell(row=2, column=col_total_pesos, value="Pesos ($)").fill = header_fill
+  ws.cell(row=2, column=col_total_pesos).font = header_font
+  ws.cell(row=2, column=col_total_pesos).alignment = Alignment(horizontal="center")
+  ws.cell(row=2, column=col_total_pesos).border = thin_border
+
   fila = 3
+  inicio_g1 = fila
   for nombre in mwf_nombres:
     ws.cell(row=fila, column=2, value=nombre).border = thin_border
     for idx, f in enumerate(fechas_g1, start=3):
       f_str = f"{f:02d}/{mes_sel:02d}/{anio_sel}"
       val_celda = ""
       if f_str in datos_registros and nombre in datos_registros[f_str]:
-        val_celda = (
-            "X"
-            if datos_registros[f_str][nombre].get("listo")
-            or (datos_registros[f_str][nombre].get("ida"))
-            else ""
-        )
+        info_reg = datos_registros[f_str][nombre]
+        is_listo = info_reg.get("listo", False)
+        reg_ida = info_reg.get("ida", False)
+        reg_vuelta = info_reg.get("vuelta", False)
+        
+        # 1 si es completo, 0.5 si es medio, vacío si no viajó
+        if (reg_ida and reg_vuelta) or is_listo:
+          val_celda = 1
+        elif reg_ida or reg_vuelta:
+          val_celda = 0.5
 
-      c = ws.cell(row=fila, column=idx, value=val_celda)
+      c = ws.cell(row=fila, column=idx, value=val_celda if val_celda != "" else "")
       c.border = thin_border
       c.alignment = Alignment(horizontal="center")
+
+    # Fórmulas de Excel para Total Viajes y Total en Pesos
+    col_letra_inicio = openpyxl.utils.get_column_letter(3)
+    col_letra_fin = openpyxl.utils.get_column_letter(len(fechas_g1) + 2)
+    
+    celda_tv = ws.cell(row=fila, column=col_total_viajes, value=f"=SUM({col_letra_inicio}{fila}:{col_letra_fin}{fila})")
+    celda_tv.border = thin_border
+    celda_tv.alignment = Alignment(horizontal="center")
+    celda_tv.number_format = '0.0'
+
+    celda_tp = ws.cell(row=fila, column=col_total_pesos, value=f"={openpyxl.utils.get_column_letter(col_total_viajes)}{fila}*{TARIFA_MEDIO}")
+    celda_tp.border = thin_border
+    celda_tp.alignment = Alignment(horizontal="right")
+    celda_tp.number_format = '"$"#,##0'
+
     fila += 1
+  fin_g1 = fila - 1
 
   fila += 2
 
@@ -586,27 +632,69 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
     cell.alignment = Alignment(horizontal="center")
     cell.border = thin_border
 
+  # Cabeceras de totales Grupo 2
+  c_tv2 = ws.cell(row=fila_c1, column=col_total_viajes, value="Total Viajes")
+  c_tv2.fill = header_fill
+  c_tv2.font = header_font
+  c_tv2.alignment = Alignment(horizontal="center")
+  c_tv2.border = thin_border
+  ws.cell(row=fila_c2, column=col_total_viajes, value="Viajes").fill = header_fill
+  ws.cell(row=fila_c2, column=col_total_viajes).font = header_font
+  ws.cell(row=fila_c2, column=col_total_viajes).alignment = Alignment(horizontal="center")
+  ws.cell(row=fila_c2, column=col_total_viajes).border = thin_border
+
+  c_tp2 = ws.cell(row=fila_c1, column=col_total_pesos, value="Total en Pesos")
+  c_tp2.fill = header_fill
+  c_tp2.font = header_font
+  c_tp2.alignment = Alignment(horizontal="center")
+  c_tp2.border = thin_border
+  ws.cell(row=fila_c2, column=col_total_pesos, value="Pesos ($)").fill = header_fill
+  ws.cell(row=fila_c2, column=col_total_pesos).font = header_font
+  ws.cell(row=fila_c2, column=col_total_pesos).alignment = Alignment(horizontal="center")
+  ws.cell(row=fila_c2, column=col_total_pesos).border = thin_border
+
   fila_datos = fila_c2 + 1
+  inicio_g2 = fila_datos
   for nombre in tts_nombres:
     ws.cell(row=fila_datos, column=2, value=nombre).border = thin_border
     for idx, f in enumerate(fechas_g2, start=3):
       f_str = f"{f:02d}/{mes_sel:02d}/{anio_sel}"
       val_celda = ""
       if f_str in datos_registros and nombre in datos_registros[f_str]:
-        val_celda = (
-            "X"
-            if datos_registros[f_str][nombre].get("listo")
-            or (datos_registros[f_str][nombre].get("ida"))
-            else ""
-        )
+        info_reg = datos_registros[f_str][nombre]
+        is_listo = info_reg.get("listo", False)
+        reg_ida = info_reg.get("ida", False)
+        reg_vuelta = info_reg.get("vuelta", False)
+        
+        if (reg_ida and reg_vuelta) or is_listo:
+          val_celda = 1
+        elif reg_ida or reg_vuelta:
+          val_celda = 0.5
 
-      c = ws.cell(row=fila_datos, column=idx, value=val_celda)
+      c = ws.cell(row=fila_datos, column=idx, value=val_celda if val_celda != "" else "")
       c.border = thin_border
       c.alignment = Alignment(horizontal="center")
+
+    col_letra_inicio_g2 = openpyxl.utils.get_column_letter(3)
+    col_letra_fin_g2 = openpyxl.utils.get_column_letter(len(fechas_g2) + 2)
+
+    celda_tv = ws.cell(row=fila_datos, column=col_total_viajes, value=f"=SUM({col_letra_inicio_g2}{fila_datos}:{col_letra_fin_g2}{fila_datos})")
+    celda_tv.border = thin_border
+    celda_tv.alignment = Alignment(horizontal="center")
+    celda_tv.number_format = '0.0'
+
+    celda_tp = ws.cell(row=fila_datos, column=col_total_pesos, value=f"={openpyxl.utils.get_column_letter(col_total_viajes)}{fila_datos}*{TARIFA_MEDIO}")
+    celda_tp.border = thin_border
+    celda_tp.alignment = Alignment(horizontal="right")
+    celda_tp.number_format = '"$"#,##0'
+
     fila_datos += 1
+  fin_g2 = fila_datos - 1
 
   ws.column_dimensions["A"].width = 5
   ws.column_dimensions["B"].width = 25
+  ws.column_dimensions[openpyxl.utils.get_column_letter(col_total_viajes)].width = 15
+  ws.column_dimensions[openpyxl.utils.get_column_letter(col_total_pesos)].width = 18
 
   output = io.BytesIO()
   wb.save(output)
