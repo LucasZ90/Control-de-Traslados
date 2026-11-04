@@ -269,7 +269,7 @@ def actualizar_valores_paciente(info):
   if reg_ida and reg_vuelta:
     info["estado"] = "Completo (Ida y Vuelta)"
     info["valor"] = TARIFA_COMPLETO
-    info["listo"] = True  # <--- Se finaliza automáticamente al tener ambos
+    info["listo"] = True
   elif reg_ida or reg_vuelta:
     info["estado"] = "Medio (Un solo tramo)"
     info["valor"] = TARIFA_MEDIO
@@ -305,7 +305,9 @@ def generar_excel_bytes(datos, es_diario=False):
     cell.border = thin_border
 
   fila_actual = 2
-  for fecha, pacientes_dia in sorted(datos.items()):
+  for fecha, pacientes_dia in sorted(
+      datos.items(), key=lambda x: datetime.strptime(x[0], "%d/%m/%Y")
+  ):
     try:
       if datetime.strptime(fecha, "%d/%m/%Y").date() < date(2026, 10, 14):
         continue
@@ -771,44 +773,77 @@ if menu == "Registrar / Actualizar Viajes":
         )
 
 elif menu == "Resumen Mensual":
-  st.header("📊 Resumen Mensual y Total a Cobrar")
+  st.header("📊 Resumen por Meses y Ganancias")
 
-  datos_validos = {}
+  # Filtrar y agrupar registros válidos estrictamente por Mes/Año calendario
+  meses_agrupados = {}
   for f_str, reg in datos.items():
     try:
-      if datetime.strptime(f_str, "%d/%m/%Y").date() >= date(2026, 10, 14):
-        datos_validos[f_str] = reg
+      f_obj = datetime.strptime(f_str, "%d/%m/%Y")
+      if f_obj.date() >= date(2026, 10, 14):
+        # Clave amigable por mes (Ej: "Octubre 2026", "Noviembre 2026", etc.)
+        # Usamos un identificador ordenable "YYYY-MM" internamente para ordenar las tarjetas
+        mes_key_orden = f_obj.strftime("%Y-%m")
+        
+        nombres_meses = {
+            "01": "Enero", "02": "Febrero", "03": "Marzo", "04": "Abril",
+            "05": "Mayo", "06": "Junio", "07": "Julio", "08": "Agosto",
+            "09": "Septiembre", "10": "Octubre", "11": "Noviembre", "12": "Diciembre"
+        }
+        anio, mes_num = mes_key_orden.split("-")
+        nombre_mes_amigable = f"{nombres_meses[mes_num]} {anio}"
+
+        if mes_key_orden not in meses_agrupados:
+          meses_agrupados[mes_key_orden] = {
+              "nombre_amigable": nombre_mes_amigable,
+              "registros_dias": {}
+          }
+        meses_agrupados[mes_key_orden]["registros_dias"][f_str] = reg
     except ValueError:
       pass
 
-  if not datos_validos:
+  if not meses_agrupados:
     st.info(
         "No hay registros de traslados (comenzando estrictamente desde el"
         " 14/10/2026)."
     )
   else:
-    total_mes = 0
-    for fecha, pacientes_dia in sorted(datos_validos.items()):
-      with st.expander(f"📅 Fecha: {fecha}"):
-        total_dia = 0
+    # Ordenar los meses del más reciente al más antiguo (o viceversa)
+    for mes_key in sorted(meses_agrupados.keys(), reverse=True):
+      info_mes = meses_agrupados[mes_key]
+      nombre_mes = info_mes["nombre_amigable"]
+      registros_dias = info_mes["registros_dias"]
+
+      total_mes = 0
+      for fecha, pacientes_dia in registros_dias.items():
         for nombre, info in pacientes_dia.items():
-          st.write(f"- **{nombre}**: {info['estado']} (${info['valor']:,})")
-          total_dia += info["valor"]
-        st.markdown(f"**Total del día: ${total_dia:,}**")
-        total_mes += total_dia
+          total_mes += info["valor"]
 
-    st.markdown("---")
-    st.subheader(f"💰 TOTAL GENERAL ACUMULADO: ${total_mes:,}")
+      # Crear un bloque/expander por cada mes independiente
+      with st.expander(f"📅 Mes: {nombre_mes} — Total: ${total_mes:,}", expanded=(mes_key == max(meses_agrupados.keys()))):
+        for fecha, pacientes_dia in sorted(
+            registros_dias.items(), key=lambda x: datetime.strptime(x[0], "%d/%m/%Y")
+        ):
+          st.markdown(f"**Día: {fecha}**")
+          total_dia = 0
+          for nombre, info in pacientes_dia.items():
+            st.write(f"- {nombre}: {info['estado']} (${info['valor']:,})")
+            total_dia += info["valor"]
+          st.markdown(f"_Subtotal día: ${total_dia:,}_")
+          st.markdown("---")
 
-    st.markdown("")
-    excel_bytes_mes = generar_excel_bytes(datos_validos, es_diario=False)
-    st.download_button(
-        label="📊 Descargar Resumen Mensual en Excel (.xlsx)",
-        data=excel_bytes_mes,
-        file_name="control_dialisis_resumen_mensual.xlsx",
-        mime=(
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        ),
-        type="primary",
-        use_container_width=True,
-    )
+        st.markdown(f"### 💰 Total acumulado de {nombre_mes}: ${total_mes:,}")
+
+        # Botón de descarga individual por mes
+        excel_bytes_mes = generar_excel_bytes(registros_dias, es_diario=False)
+        st.download_button(
+            label=f"📊 Descargar reporte de {nombre_mes} (.xlsx)",
+            data=excel_bytes_mes,
+            file_name=f"control_dialisis_{mes_key}.xlsx",
+            mime=(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ),
+            type="primary",
+            key=f"dl_mes_{mes_key}",
+            use_container_width=True,
+        )
