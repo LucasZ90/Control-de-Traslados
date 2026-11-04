@@ -3,6 +3,10 @@ import io
 import json
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
 import streamlit as st
 from supabase import create_client
 
@@ -353,6 +357,155 @@ def generar_excel_bytes(datos, es_diario=False):
   return output.getvalue()
 
 
+def generar_excel_historial_pacientes(resumen_pacientes):
+  wb = openpyxl.Workbook()
+  ws = wb.active
+  ws.title = "Historial Pacientes"
+
+  encabezados = [
+      "Paciente",
+      "Días Completos",
+      "Días Medios",
+      "Ausencias",
+      "Total Días Viajados",
+      "Total Acumulado ($)",
+  ]
+  ws.append(encabezados)
+
+  header_fill = PatternFill(
+      start_color="1F4E78", end_color="1F4E78", fill_type="solid"
+  )
+  header_font = Font(color="FFFFFF", bold=True, size=11)
+  thin_border = Border(
+      left=Side(style="thin", color="D3D3D3"),
+      right=Side(style="thin", color="D3D3D3"),
+      top=Side(style="thin", color="D3D3D3"),
+      bottom=Side(style="thin", color="D3D3D3"),
+  )
+
+  for col_num, header in enumerate(encabezados, 1):
+    cell = ws.cell(row=1, column=col_num)
+    cell.fill = header_fill
+    cell.font = header_font
+    cell.alignment = Alignment(horizontal="center", vertical="center")
+    cell.border = thin_border
+
+  fila_actual = 2
+  for nombre, datos_p in sorted(resumen_pacientes.items()):
+    ws.cell(row=fila_actual, column=1, value=nombre).border = thin_border
+    ws.cell(
+        row=fila_actual, column=2, value=datos_p["completos"]
+    ).border = thin_border
+    ws.cell(row=fila_actual, column=3, value=datos_p["medios"]).border = (
+        thin_border
+    )
+    ws.cell(row=fila_actual, column=4, value=datos_p["ausencias"]).border = (
+        thin_border
+    )
+    ws.cell(
+        row=fila_actual, column=5, value=datos_p["total_viajes"]
+    ).border = thin_border
+
+    celda_val = ws.cell(
+        row=fila_actual, column=6, value=datos_p["total_monto"]
+    )
+    celda_val.border = thin_border
+    celda_val.number_format = '"$"#,##0'
+
+    fila_actual += 1
+
+  column_widths = {"A": 25, "B": 18, "C": 15, "D": 15, "E": 20, "F": 20}
+  for col, width in column_widths.items():
+    ws.column_dimensions[col].width = width
+
+  output = io.BytesIO()
+  wb.save(output)
+  output.seek(0)
+  return output.getvalue()
+
+
+def generar_pdf_historial(resumen_pacientes, titulo_reporte):
+  buffer = io.BytesIO()
+  doc = SimpleDocTemplate(
+      buffer,
+      pagesize=letter,
+      rightMargin=30,
+      leftMargin=30,
+      topMargin=30,
+      bottomMargin=30,
+  )
+  elements = []
+
+  styles = getSampleStyleSheet()
+  title_style = ParagraphStyle(
+      "TitleStyle",
+      parent=styles["Heading1"],
+      fontName="Helvetica-Bold",
+      fontSize=16,
+      textColor=colors.HexColor("#1F4E78"),
+      spaceAfter=15,
+  )
+  normal_style = ParagraphStyle(
+      "NormalStyle",
+      parent=styles["Normal"],
+      fontName="Helvetica",
+      fontSize=10,
+      textColor=colors.HexColor("#333333"),
+  )
+
+  elements.append(Paragraph("Gestión de Traslados - Diálisis", title_style))
+  elements.append(Paragraph(titulo_reporte, normal_style))
+  elements.append(
+      Paragraph(
+          f"Fecha de emisión: {datetime.now().strftime('%d/%m/%Y')}",
+          normal_style,
+      )
+  )
+  elements.append(Spacer(1, 15))
+
+  table_data = [[
+      "Paciente",
+      "Completos",
+      "Medios",
+      "Ausencias",
+      "Total Viajes",
+      "Acumulado",
+  ]]
+  for nombre, datos_p in sorted(resumen_pacientes.items()):
+    table_data.append([
+        nombre,
+        str(datos_p["completos"]),
+        str(datos_p["medios"]),
+        str(datos_p["ausencias"]),
+        str(datos_p["total_viajes"]),
+        f"${datos_p['total_monto']:,}",
+    ])
+
+  t = Table(table_data, colWidths=[140, 70, 60, 65, 80, 85])
+  t.setStyle(
+      TableStyle([
+          ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F4E78")),
+          ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+          ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+          ("ALIGN", (0, 1), (0, -1), "LEFT"),
+          ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+          ("FONTSIZE", (0, 0), (-1, 0), 10),
+          ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+          ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#F9F9F9")),
+          ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D3D3D3")),
+          ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+          ("FONTSIZE", (0, 1), (-1, -1), 9),
+          ("TOPPADDING", (0, 1), (-1, -1), 5),
+          ("BOTTOMPADDING", (0, 1), (-1, -1), 5),
+      ])
+  )
+
+  elements.append(t)
+  doc.build(elements)
+  buffer.seek(0)
+  return buffer.getvalue()
+
+
 # Título principal limpio
 st.title("Gestión de Traslados")
 
@@ -360,13 +513,16 @@ st.title("Gestión de Traslados")
 if "menu_actual" not in st.session_state:
   st.session_state["menu_actual"] = "Registrar / Actualizar Viajes"
 
-col_nav1, col_nav2 = st.columns(2)
+col_nav1, col_nav2, col_nav3 = st.columns(3)
 with col_nav1:
   if st.button("📋 Registrar", use_container_width=True):
     st.session_state["menu_actual"] = "Registrar / Actualizar Viajes"
 with col_nav2:
   if st.button("📊 Resumen", use_container_width=True):
     st.session_state["menu_actual"] = "Resumen Mensual"
+with col_nav3:
+  if st.button("📂 Historial", use_container_width=True):
+    st.session_state["menu_actual"] = "Historial de Pacientes"
 
 menu = st.session_state["menu_actual"]
 
@@ -775,16 +931,12 @@ if menu == "Registrar / Actualizar Viajes":
 elif menu == "Resumen Mensual":
   st.header("📊 Resumen por Meses y Ganancias")
 
-  # Filtrar y agrupar registros válidos estrictamente por Mes/Año calendario
   meses_agrupados = {}
   for f_str, reg in datos.items():
     try:
       f_obj = datetime.strptime(f_str, "%d/%m/%Y")
       if f_obj.date() >= date(2026, 10, 14):
-        # Clave amigable por mes (Ej: "Octubre 2026", "Noviembre 2026", etc.)
-        # Usamos un identificador ordenable "YYYY-MM" internamente para ordenar las tarjetas
         mes_key_orden = f_obj.strftime("%Y-%m")
-        
         nombres_meses = {
             "01": "Enero", "02": "Febrero", "03": "Marzo", "04": "Abril",
             "05": "Mayo", "06": "Junio", "07": "Julio", "08": "Agosto",
@@ -808,7 +960,6 @@ elif menu == "Resumen Mensual":
         " 14/10/2026)."
     )
   else:
-    # Ordenar los meses del más reciente al más antiguo (o viceversa)
     for mes_key in sorted(meses_agrupados.keys(), reverse=True):
       info_mes = meses_agrupados[mes_key]
       nombre_mes = info_mes["nombre_amigable"]
@@ -819,7 +970,6 @@ elif menu == "Resumen Mensual":
         for nombre, info in pacientes_dia.items():
           total_mes += info["valor"]
 
-      # Crear un bloque/expander por cada mes independiente
       with st.expander(f"📅 Mes: {nombre_mes} — Total: ${total_mes:,}", expanded=(mes_key == max(meses_agrupados.keys()))):
         for fecha, pacientes_dia in sorted(
             registros_dias.items(), key=lambda x: datetime.strptime(x[0], "%d/%m/%Y")
@@ -834,7 +984,6 @@ elif menu == "Resumen Mensual":
 
         st.markdown(f"### 💰 Total acumulado de {nombre_mes}: ${total_mes:,}")
 
-        # Botón de descarga individual por mes
         excel_bytes_mes = generar_excel_bytes(registros_dias, es_diario=False)
         st.download_button(
             label=f"📊 Descargar reporte de {nombre_mes} (.xlsx)",
@@ -843,7 +992,4 @@ elif menu == "Resumen Mensual":
             mime=(
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             ),
-            type="primary",
-            key=f"dl_mes_{mes_key}",
-            use_container_width=True,
-        )
+            type
