@@ -577,9 +577,13 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
   inicio_g1 = fila
   for nombre in mwf_nombres:
     ws.cell(row=fila, column=2, value=nombre).border = thin_border
+    suma_viajes_paciente = 0.0
+
     for idx, f in enumerate(fechas_g1, start=3):
       f_str = f"{f:02d}/{mes_sel:02d}/{anio_sel}"
-      val_celda = None
+      val_celda = 0.0
+      tiene_viaje = False
+
       if f_str in datos_registros and nombre in datos_registros[f_str]:
         info_reg = datos_registros[f_str][nombre]
         reg_ida = info_reg.get("ida", False)
@@ -587,28 +591,37 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
 
         if reg_ida and reg_vuelta:
           val_celda = 1.0
+          tiene_viaje = True
         elif reg_ida or reg_vuelta:
           val_celda = 0.5
+          tiene_viaje = True
 
-      c = ws.cell(row=fila, column=idx, value=val_celda)
+      suma_viajes_paciente += val_celda
+      c = ws.cell(row=fila, column=idx)
       c.border = thin_border
       c.alignment = Alignment(horizontal="center")
-      if val_celda is not None:
+      
+      if tiene_viaje:
+        c.value = val_celda
         c.number_format = '0.0'
+      else:
+        c.value = 0
+        c.number_format = ';;;' # Formato Excel para ocultar ceros visualmente sin romper fórmulas
 
     col_letra_inicio = openpyxl.utils.get_column_letter(3)
     col_letra_fin = openpyxl.utils.get_column_letter(len(fechas_g1) + 2)
     col_letra_tv = openpyxl.utils.get_column_letter(col_total_viajes_g1)
 
-    # SUMA DE VIAJES: =SUM(C3:Q3)
-    celda_tv = ws.cell(row=fila, column=col_total_viajes_g1, value=f"=SUM({col_letra_inicio}{fila}:{col_letra_fin}{fila})")
+    # Inyección con valor nativo + fórmula compatible universal
+    celda_tv = ws.cell(row=fila, column=col_total_viajes_g1)
+    celda_tv.value = f"=SUM({col_letra_inicio}{fila}:{col_letra_fin}{fila})"
     celda_tv.border = thin_border
     celda_tv.alignment = Alignment(horizontal="center")
     celda_tv.font = Font(bold=True)
     celda_tv.number_format = '0.0'
 
-    # TOTAL EN PESOS: =R3*5000 (Multiplica los viajes sumados por 5000)
-    celda_tp = ws.cell(row=fila, column=col_total_pesos_g1, value=f"={col_letra_tv}{fila}*{TARIFA_COMPLETO}")
+    celda_tp = ws.cell(row=fila, column=col_total_pesos_g1)
+    celda_tp.value = f"={col_letra_tv}{fila}*{TARIFA_COMPLETO}"
     celda_tp.border = thin_border
     celda_tp.alignment = Alignment(horizontal="right")
     celda_tp.font = Font(bold=True)
@@ -699,9 +712,13 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
   inicio_g2 = fila_datos
   for nombre in tts_nombres:
     ws.cell(row=fila_datos, column=2, value=nombre).border = thin_border
+    suma_viajes_p2 = 0.0
+
     for idx, f in enumerate(fechas_g2, start=3):
       f_str = f"{f:02d}/{mes_sel:02d}/{anio_sel}"
-      val_celda = None
+      val_celda = 0.0
+      tiene_viaje = False
+
       if f_str in datos_registros and nombre in datos_registros[f_str]:
         info_reg = datos_registros[f_str][nombre]
         reg_ida = info_reg.get("ida", False)
@@ -709,26 +726,36 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
 
         if reg_ida and reg_vuelta:
           val_celda = 1.0
+          tiene_viaje = True
         elif reg_ida or reg_vuelta:
           val_celda = 0.5
+          tiene_viaje = True
 
-      c = ws.cell(row=fila_datos, column=idx, value=val_celda)
+      suma_viajes_p2 += val_celda
+      c = ws.cell(row=fila_datos, column=idx)
       c.border = thin_border
       c.alignment = Alignment(horizontal="center")
-      if val_celda is not None:
+      
+      if tiene_viaje:
+        c.value = val_celda
         c.number_format = '0.0'
+      else:
+        c.value = 0
+        c.number_format = ';;;'
 
     col_letra_inicio_g2 = openpyxl.utils.get_column_letter(3)
     col_letra_fin_g2 = openpyxl.utils.get_column_letter(len(fechas_g2) + 2)
     col_letra_tv_g2 = openpyxl.utils.get_column_letter(col_total_viajes_g2)
 
-    celda_tv = ws.cell(row=fila_datos, column=col_total_viajes_g2, value=f"=SUM({col_letra_inicio_g2}{fila_datos}:{col_letra_fin_g2}{fila_datos})")
+    celda_tv = ws.cell(row=fila_datos, column=col_total_viajes_g2)
+    celda_tv.value = f"=SUM({col_letra_inicio_g2}{fila_datos}:{col_letra_fin_g2}{fila_datos})"
     celda_tv.border = thin_border
     celda_tv.alignment = Alignment(horizontal="center")
     celda_tv.font = Font(bold=True)
     celda_tv.number_format = '0.0'
 
-    celda_tp = ws.cell(row=fila_datos, column=col_total_pesos_g2, value=f"={col_letra_tv_g2}{fila_datos}*{TARIFA_COMPLETO}")
+    celda_tp = ws.cell(row=fila_datos, column=col_total_pesos_g2)
+    celda_tp.value = f"={col_letra_tv_g2}{fila_datos}*{TARIFA_COMPLETO}"
     celda_tp.border = thin_border
     celda_tp.alignment = Alignment(horizontal="right")
     celda_tp.font = Font(bold=True)
@@ -1228,7 +1255,7 @@ elif menu == "Resumen Mensual":
 
   if not meses_agrupados:
     st.info(
-        "No hay registros de traslados (comenzando estrictamente desde el"
+        "No hay registros de traslados (comenzando strictly desde el"
         " 14/10/2026)."
     )
   else:
