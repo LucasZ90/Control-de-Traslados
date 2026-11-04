@@ -869,4 +869,373 @@ if menu == "Registrar / Actualizar Viajes":
                   "Nuevo número de teléfono", key=f"new_num_{p_id}"
               )
               nueva_rel = st.text_input(
-                  "Relación (Ej: Paciente, Hijo
+                  "Relación (Ej: Paciente, Hijo/a)", key=f"new_rel_{p_id}"
+              )
+
+              if st.button(
+                  "➕ Añadir Contacto",
+                  key=f"add_btn_{p_id}",
+                  use_container_width=True,
+              ):
+                if nuevo_num.strip():
+                  contactos_actuales.append({
+                      "numero": nuevo_num.strip(),
+                      "relacion": (
+                          nueva_rel.strip()
+                          if nueva_rel.strip()
+                          else "Contacto"
+                      ),
+                  })
+                  guardar_paciente_db(
+                      p_id,
+                      p["grupo"],
+                      p["nombre"],
+                      p["turno"],
+                      p["maps_link"],
+                      contactos_actuales,
+                  )
+                  st.success("¡Contacto añadido!")
+                  st.rerun()
+                else:
+                  st.error("Ingresa un número.")
+
+              col_save, col_del = st.columns([4, 1])
+              if col_save.button(
+                  "💾 Guardar Cambios",
+                  key=f"save_{p_id}",
+                  type="primary",
+                  use_container_width=True,
+              ):
+                nuevo_grupo_val = "MWF" if "Grupo 1" in edit_grupo else "TTS"
+                ok, err = guardar_paciente_db(
+                    p_id,
+                    nuevo_grupo_val,
+                    edit_nombre.strip(),
+                    edit_turno,
+                    edit_maps.strip(),
+                    contactos_actuales,
+                )
+                if ok:
+                  st.success("¡Guardado!")
+                  st.rerun()
+                else:
+                  st.error(f"Error: {err}")
+
+              if col_del.button(
+                  "🗑️",
+                  key=f"del_p_{p_id}",
+                  use_container_width=True,
+                  help="Eliminar paciente",
+              ):
+                ok, err = eliminar_paciente_db(p_id)
+                if ok:
+                  st.rerun()
+                else:
+                  st.error(f"Error: {err}")
+
+            maps_url = p.get("maps_link", "").strip()
+            contactos = [c for c in p.get("contactos", []) if c.get("numero")]
+
+            html_chips = "<div style='margin-bottom: 8px; margin-top: 4px;'>"
+            if maps_url:
+              html_chips += f"<a href='{maps_url}' target='_blank' class='chip-link'>📍 Ubicación</a>"
+            else:
+              html_chips += "<span style='font-size: 0.78rem; color: #8B949E; margin-right: 8px;'>📍 Sin ubicación</span>"
+
+            if contactos:
+              for c in contactos:
+                num_clean = c["numero"].replace(" ", "").replace("-", "")
+                html_chips += f"<a href='tel:{num_clean}' class='chip-link'>📞 {c['relacion']}</a>"
+            else:
+              html_chips += "<span style='font-size: 0.78rem; color: #8B949E;'>📞 Sin contacto</span>"
+
+            html_chips += "</div>"
+            st.markdown(html_chips, unsafe_allow_html=True)
+
+            col_b1, col_b2, col_b3 = st.columns([2.2, 2.2, 1.6])
+
+            label_ida = "✅ Ida" if reg_ida else "❌ Ida"
+            if col_b1.button(
+                label_ida,
+                key=f"t_{turno_turno}_i_{p_id}_{fecha_str}",
+                use_container_width=True,
+                disabled=is_listo,
+            ):
+              info_paciente["ida"] = not reg_ida
+              actualizar_valores_paciente(info_paciente)
+              guardar_registro_db(fecha_str, nombre, info_paciente)
+              st.rerun()
+
+            label_vuelta = "✅ Vuelta" if reg_vuelta else "❌ Vuelta"
+            if col_b2.button(
+                label_vuelta,
+                key=f"t_{turno_turno}_v_{p_id}_{fecha_str}",
+                use_container_width=True,
+                disabled=is_listo,
+            ):
+              info_paciente["vuelta"] = not reg_vuelta
+              actualizar_valores_paciente(info_paciente)
+              guardar_registro_db(fecha_str, nombre, info_paciente)
+              st.rerun()
+
+            if not is_listo:
+              if col_b3.button(
+                  "🏁 Fin",
+                  key=f"t_{turno_turno}_f_{p_id}_{fecha_str}",
+                  use_container_width=True,
+              ):
+                info_paciente["listo"] = True
+                guardar_registro_db(fecha_str, nombre, info_paciente)
+                st.rerun()
+            else:
+              if col_b3.button(
+                  "🔄 Abrir",
+                  key=f"t_{turno_turno}_r_{p_id}_{fecha_str}",
+                  use_container_width=True,
+              ):
+                info_paciente["listo"] = False
+                guardar_registro_db(fecha_str, nombre, info_paciente)
+                st.rerun()
+
+      if fecha_str in datos and datos[fecha_str]:
+        datos_del_dia = {fecha_str: datos[fecha_str]}
+        excel_bytes_dia = generar_excel_bytes(datos_del_dia, es_diario=True)
+        nombre_archivo_dia = (
+            f"resumen_{fecha_seleccionada.strftime('%d_%m_%Y')}.xlsx"
+        )
+        st.download_button(
+            label=f"📊 Descargar Resumen del Día ({fecha_str})",
+            data=excel_bytes_dia,
+            file_name=nombre_archivo_dia,
+            mime=(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ),
+            type="primary",
+            use_container_width=True,
+        )
+
+elif menu == "Resumen Mensual":
+  st.header("📊 Resumen por Meses y Ganancias")
+
+  meses_agrupados = {}
+  for f_str, reg in datos.items():
+    try:
+      f_obj = datetime.strptime(f_str, "%d/%m/%Y")
+      if f_obj.date() >= date(2026, 10, 14):
+        mes_key_orden = f_obj.strftime("%Y-%m")
+        nombres_meses = {
+            "01": "Enero", "02": "Febrero", "03": "Marzo", "04": "Abril",
+            "05": "Mayo", "06": "Junio", "07": "Julio", "08": "Agosto",
+            "09": "Septiembre", "10": "Octubre", "11": "Noviembre", "12": "Diciembre"
+        }
+        anio, mes_num = mes_key_orden.split("-")
+        nombre_mes_amigable = f"{nombres_meses[mes_num]} {anio}"
+
+        if mes_key_orden not in meses_agrupados:
+          meses_agrupados[mes_key_orden] = {
+              "nombre_amigable": nombre_mes_amigable,
+              "registros_dias": {}
+          }
+        meses_agrupados[mes_key_orden]["registros_dias"][f_str] = reg
+    except ValueError:
+      pass
+
+  if not meses_agrupados:
+    st.info(
+        "No hay registros de traslados (comenzando estrictamente desde el"
+        " 14/10/2026)."
+    )
+  else:
+    for mes_key in sorted(meses_agrupados.keys(), reverse=True):
+      info_mes = meses_agrupados[mes_key]
+      nombre_mes = info_mes["nombre_amigable"]
+      registros_dias = info_mes["registros_dias"]
+
+      total_mes = 0
+      for fecha, pacientes_dia in registros_dias.items():
+        for nombre, info in pacientes_dia.items():
+          total_mes += info["valor"]
+
+      with st.expander(f"📅 Mes: {nombre_mes} — Total: ${total_mes:,}", expanded=(mes_key == max(meses_agrupados.keys()))):
+        for fecha, pacientes_dia in sorted(
+            registros_dias.items(), key=lambda x: datetime.strptime(x[0], "%d/%m/%Y")
+        ):
+          st.markdown(f"**Día: {fecha}**")
+          total_dia = 0
+          for nombre, info in pacientes_dia.items():
+            st.write(f"- {nombre}: {info['estado']} (${info['valor']:,})")
+            total_dia += info["valor"]
+          st.markdown(f"_Subtotal día: ${total_dia:,}_")
+          st.markdown("---")
+
+        st.markdown(f"### 💰 Total acumulado de {nombre_mes}: ${total_mes:,}")
+
+        excel_bytes_mes = generar_excel_bytes(registros_dias, es_diario=False)
+        st.download_button(
+            label=f"📊 Descargar reporte de {nombre_mes} (.xlsx)",
+            data=excel_bytes_mes,
+            file_name=f"control_dialisis_{mes_key}.xlsx",
+            mime=(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ),
+            type="primary",
+            key=f"dl_mes_{mes_key}",
+            use_container_width=True,
+        )
+
+elif menu == "Historial de Pacientes":
+  st.header("📂 Historial Detallado de Pacientes")
+  st.write("Consulta los días específicos que viajó cada paciente, sus totales y exporta los informes.")
+
+  historial_detalle = []
+  resumen_pacientes = {}
+
+  for p in todos_pacientes:
+    nombre_p = p["nombre"]
+    resumen_pacientes[nombre_p] = {
+        "completos": 0, "medios": 0, "ausencias": 0, "total_viajes": 0, "total_monto": 0
+    }
+
+  for fecha, pacientes_dia in sorted(
+      datos.items(), key=lambda x: datetime.strptime(x[0], "%d/%m/%Y")
+  ):
+    for nombre, info in pacientes_dia.items():
+      if nombre not in resumen_pacientes:
+        resumen_pacientes[nombre] = {
+            "completos": 0, "medios": 0, "ausencias": 0, "total_viajes": 0, "total_monto": 0
+        }
+      
+      estado = info.get("estado", "")
+      valor = info.get("valor", 0)
+
+      if "Completo" in estado:
+        resumen_pacientes[nombre]["completos"] += 1
+        resumen_pacientes[nombre]["total_viajes"] += 1
+      elif "Medio" in estado:
+        resumen_pacientes[nombre]["medios"] += 1
+        resumen_pacientes[nombre]["total_viajes"] += 1
+      else:
+        resumen_pacientes[nombre]["ausencias"] += 1
+
+      resumen_pacientes[nombre]["total_monto"] += valor
+
+      historial_detalle.append({
+          "nombre": nombre,
+          "fecha": fecha,
+          "estado": estado,
+          "valor": valor
+      })
+
+  modo_descarga = st.radio(
+      "Selecciona el alcance del reporte:",
+      ["Todos juntos", "Paciente individual"],
+      horizontal=True
+  )
+
+  paciente_seleccionado = None
+  if modo_descarga == "Paciente individual":
+    nombres_disponibles = sorted(list(resumen_pacientes.keys()))
+    if nombres_disponibles:
+      paciente_seleccionado = st.selectbox("Elige al paciente", nombres_disponibles)
+    else:
+      st.warning("No hay pacientes registrados.")
+
+  st.markdown("---")
+
+  if modo_descarga == "Todos juntos":
+    for nombre, datos_p in sorted(resumen_pacientes.items()):
+      with st.container(border=True):
+        st.markdown(f"### 👤 {nombre}")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("🟢 Completos", datos_p["completos"])
+        col2.metric("🟡 Medios", datos_p["medios"])
+        col3.metric("🚗 Total Viajes", datos_p["total_viajes"])
+        col4.metric("💰 Acumulado", f"${datos_p['total_monto']:,}")
+
+        viajes_paciente = [item for item in historial_detalle if item["nombre"] == nombre]
+        if viajes_paciente:
+          with st.expander(f"Ver días y fechas de {nombre} ({len(viajes_paciente)} registros)"):
+            for v in viajes_paciente:
+              st.write(f"• **{v['fecha']}** — {v['estado']} (*${v['valor']:,}*)")
+        else:
+          st.write("*(Sin registros de viajes)*")
+
+    excel_bytes = generar_excel_historial_detallado(historial_detalle)
+    pdf_bytes = generar_pdf_historial_detallado(historial_detalle, "Historial Detallado de Todos los Pacientes")
+
+    col_dl1, col_dl2 = st.columns(2)
+    with col_dl1:
+      st.download_button(
+          label="📊 Descargar Excel (Todos)",
+          data=excel_bytes,
+          file_name="historial_detallado_todos.xlsx",
+          mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          type="primary",
+          use_container_width=True
+      )
+    with col_dl2:
+      st.download_button(
+          label="📄 Descargar PDF (Todos)",
+          data=pdf_bytes,
+          file_name="historial_detallado_todos.pdf",
+          mime="application/pdf",
+          type="primary",
+          use_container_width=True
+      )
+
+  else:
+    if paciente_seleccionado:
+      datos_p = resumen_pacientes[paciente_seleccionado]
+      with st.container(border=True):
+        st.markdown(f"### 👤 {paciente_seleccionado}")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("🟢 Días Completos", datos_p["completos"])
+        col2.metric("🟡 Días Medios", datos_p["medios"])
+        col3.metric("🚗 Total Días Viajados", datos_p["total_viajes"])
+        col4.metric("💰 Total Acumulado", f"${datos_p['total_monto']:,}")
+
+        st.markdown("#### 📅 Fechas y detalles de sus viajes:")
+        viajes_paciente = [item for item in historial_detalle if item["nombre"] == paciente_seleccionado]
+        if viajes_paciente:
+          for v in viajes_paciente:
+            st.write(f"• **{v['fecha']}** — {v['estado']} (*${v['valor']:,}*)")
+        else:
+          st.write("*(Sin registros de viajes)*")
+
+      detalle_individual = [item for item in historial_detalle if item["nombre"] == paciente_seleccionado]
+      excel_bytes = generar_excel_historial_detallado(detalle_individual)
+      pdf_bytes = generar_pdf_historial_detallado(detalle_individual, f"Historial Detallado del Paciente: {paciente_seleccionado}")
+
+      col_dl1, col_dl2 = st.columns(2)
+      with col_dl1:
+        st.download_button(
+            label=f"📊 Descargar Excel ({paciente_seleccionado})",
+            data=excel_bytes,
+            file_name=f"historial_{paciente_seleccionado.replace(' ', '_')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary",
+            use_container_width=True
+        )
+      with col_dl2:
+        st.download_button(
+            label=f"📄 Descargar PDF ({paciente_seleccionado})",
+            data=pdf_bytes,
+            file_name=f"historial_{paciente_seleccionado.replace(' ', '_')}.pdf",
+            mime="application/pdf",
+            type="primary",
+            use_container_width=True
+        )
+
+elif menu == "Planilla Matricial":
+  st.header("📅 Planilla de Control Estilo Matriz (Noviembre)")
+  st.write("Genera el archivo con el formato de cuadrícula exacta de los dos grupos.")
+
+  excel_planilla = generar_excel_planilla_matricial(datos, todos_pacientes)
+  st.download_button(
+      label="📥 Descargar Planilla Matricial en Excel (.xlsx)",
+      data=excel_planilla,
+      file_name="planilla_asistencia_noviembre.xlsx",
+      mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      type="primary",
+      use_container_width=True
+  )
