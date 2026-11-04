@@ -1,4 +1,5 @@
 from datetime import datetime, date
+import calendar
 import io
 import json
 import openpyxl
@@ -478,10 +479,17 @@ def generar_pdf_historial_detallado(historial_detalle, titulo_reporte):
   return buffer.getvalue()
 
 
-def generar_excel_planilla_matricial(datos_registros, todos_pacs):
+def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_sel):
   wb = openpyxl.Workbook()
   ws = wb.active
-  ws.title = "Planilla Noviembre"
+  
+  nombres_meses_dict = {
+      1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+      5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+      9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+  }
+  nombre_mes_str = nombres_meses_dict.get(mes_sel, "Mes")
+  ws.title = f"Planilla {nombre_mes_str}"
 
   header_fill = PatternFill(
       start_color="1F4E78", end_color="1F4E78", fill_type="solid"
@@ -494,17 +502,34 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs):
       bottom=Side(style="thin", color="D3D3D3"),
   )
 
-  mwf_nombres = [p["nombre"] for p in todos_pacs if p.get("grupo") == "MWF"]
+  mwf_nombres = [p["nombre"] for p in todos_pacs if p.get("grupo"] == "MWF"]
   tts_nombres = [p["nombre"] for p in todos_pacs if p.get("grupo") == "TTS"]
 
-  fechas_g1 = [2, 4, 6, 9, 11, 13, 16, 18, 20, 23, 24, 27, 30]
-  dias_g1 = ["L", "M", "V", "L", "M", "V", "L", "M", "V", "L", "M", "V", "L"]
+  # Obtener los días del mes seleccionado dinámicamente
+  dias_mes_total = calendar.monthrange(anio_sel, mes_sel)[1]
+  
+  fechas_g1 = []
+  dias_g1 = []
+  fechas_g2 = []
+  dias_g2 = []
 
-  fechas_g2 = [3, 5, 7, 10, 12, 14, 17, 19, 21, 24, 26, 28]
-  dias_g2 = ["M", "J", "S", "M", "J", "S", "M", "J", "S", "M", "J", "S"]
+  letras_dias = {0: "L", 1: "M", 2: "M", 3: "J", 4: "V", 5: "S", 6: "D"}
+
+  for dia in range(1, dias_mes_total + 1):
+    dt_obj = date(anio_sel, mes_sel, dia)
+    w_day = dt_obj.weekday()
+    # Grupo 1: Lunes(0), Miércoles(2), Viernes(4)
+    if w_day in [0, 2, 4]:
+      fechas_g1.append(dia)
+      dias_g1.append(letras_dias[w_day])
+    # Grupo 2: Martes(1), Jueves(3), Sábados(5)
+    elif w_day in [1, 3, 5]:
+      fechas_g2.append(dia)
+      dias_g2.append(letras_dias[w_day])
 
   # --- TABLA 1: GRUPO 1 ---
-  ws.cell(row=1, column=1, value="NOVIEMBRE-2026").font = Font(bold=True)
+  titulo_tabla_1 = f"{nombre_mes_str.upper()}-{anio_sel}"
+  ws.cell(row=1, column=1, value=titulo_tabla_1).font = Font(bold=True)
 
   ws.cell(row=1, column=2, value="Fecha").fill = header_fill
   for idx, d in enumerate(dias_g1, start=3):
@@ -526,7 +551,7 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs):
   for nombre in mwf_nombres:
     ws.cell(row=fila, column=2, value=nombre).border = thin_border
     for idx, f in enumerate(fechas_g1, start=3):
-      f_str = f"{f:02d}/11/2026"
+      f_str = f"{f:02d}/{mes_sel:02d}/{anio_sel}"
       val_celda = ""
       if f_str in datos_registros and nombre in datos_registros[f_str]:
         val_celda = (
@@ -544,7 +569,7 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs):
   fila += 2
 
   # --- TABLA 2: GRUPO 2 ---
-  ws.cell(row=fila, column=1, value="NOVIEMBRE-2026").font = Font(bold=True)
+  ws.cell(row=fila, column=1, value=titulo_tabla_1).font = Font(bold=True)
   fila_c1 = fila
   fila_c2 = fila + 1
 
@@ -568,7 +593,7 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs):
   for nombre in tts_nombres:
     ws.cell(row=fila_datos, column=2, value=nombre).border = thin_border
     for idx, f in enumerate(fechas_g2, start=3):
-      f_str = f"{f:02d}/11/2026"
+      f_str = f"{f:02d}/{mes_sel:02d}/{anio_sel}"
       val_celda = ""
       if f_str in datos_registros and nombre in datos_registros[f_str]:
         val_celda = (
@@ -1227,14 +1252,30 @@ elif menu == "Historial de Pacientes":
         )
 
 elif menu == "Planilla Matricial":
-  st.header("📅 Planilla de Control Estilo Matriz (Noviembre)")
-  st.write("Genera el archivo con el formato de cuadrícula exacta de los dos grupos.")
+  st.header("📅 Planilla de Control Estilo Matriz")
+  st.write("Selecciona el mes y año para generar y descargar la planilla en formato de cuadrícula.")
 
-  excel_planilla = generar_excel_planilla_matricial(datos, todos_pacientes)
+  col_m1, col_m2 = st.columns(2)
+  
+  meses_opciones = {
+      "Enero": 1, "Febrero": 2, "Marzo": 3, "Abril": 4,
+      "Mayo": 5, "Junio": 6, "Julio": 7, "Agosto": 8,
+      "Septiembre": 9, "Octubre": 10, "Noviembre": 11, "Diciembre": 12
+  }
+  
+  with col_m1:
+    mes_nombre_elegido = st.selectbox("Mes", list(meses_opciones.keys()), index=10) # Predeterminado Noviembre
+  with col_m2:
+    anio_elegido = st.selectbox("Año", [2026, 2027, 2028], index=0)
+
+  mes_num_elegido = meses_opciones[mes_nombre_elegido]
+
+  excel_planilla = generar_excel_planilla_matricial(datos, todos_pacientes, anio_elegido, mes_num_elegido)
+  
   st.download_button(
-      label="📥 Descargar Planilla Matricial en Excel (.xlsx)",
+      label=f"📥 Descargar Planilla Matricial ({mes_nombre_elegido} {anio_elegido}) en Excel (.xlsx)",
       data=excel_planilla,
-      file_name="planilla_asistencia_noviembre.xlsx",
+      file_name=f"planilla_asistencia_{mes_nombre_elegido.lower()}_{anio_elegido}.xlsx",
       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       type="primary",
       use_container_width=True
