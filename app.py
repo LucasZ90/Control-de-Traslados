@@ -497,7 +497,6 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
 
   dias_mes_total = calendar.monthrange(anio_sel, mes_sel)[1]
 
-  # Se incluyen TODOS los días de Lunes a Sábado para sincronizar exactamente con la app
   fechas_g1, dias_g1 = [], []
   fechas_g2, dias_g2 = [], []
   letras_dias = {0: "L", 1: "M", 2: "M", 3: "J", 4: "V", 5: "S", 6: "D"}
@@ -622,12 +621,13 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
   c_tot_tv.number_format = '0.0'
 
   col_tp_letra_g1 = openpyxl.utils.get_column_letter(col_total_pesos_g1)
-  c_tot_tp = ws.cell(row=fila, column=col_total_pesos_g1, value=f"=SUM({col_tp_letra_g1}{inicio_g1}:{col_tp_letra_g1}{fin_g1})")
-  c_tot_tp.fill = total_fill
-  c_tot_tp.font = total_font
-  c_tot_tp.alignment = Alignment(horizontal="right")
-  c_tot_tp.border = thin_border
-  c_tot_tp.number_format = '"$"#,##0'
+  c_tot_tp_g1 = ws.cell(row=fila, column=col_total_pesos_g1, value=f"=SUM({col_tp_letra_g1}{inicio_g1}:{col_tp_letra_g1}{fin_g1})")
+  c_tot_tp_g1.fill = total_fill
+  c_tot_tp_g1.font = total_font
+  c_tot_tp_g1.alignment = Alignment(horizontal="right")
+  c_tot_tp_g1.border = thin_border
+  c_tot_tp_g1.number_format = '"$"#,##0'
+  coord_tp_g1 = f"{col_tp_letra_g1}{fila}"
 
   fila += 3
 
@@ -743,17 +743,40 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
   c_tot_tv.number_format = '0.0'
 
   col_tp_letra_g2 = openpyxl.utils.get_column_letter(col_total_pesos_g2)
-  c_tot_tp = ws.cell(row=fila_datos, column=col_total_pesos_g2, value=f"=SUM({col_tp_letra_g2}{inicio_g2}:{col_tp_letra_g2}{fin_g2})")
-  c_tot_tp.fill = total_fill
-  c_tot_tp.font = total_font
-  c_tot_tp.alignment = Alignment(horizontal="right")
-  c_tot_tp.border = thin_border
-  c_tot_tp.number_format = '"$"#,##0'
+  c_tot_tp_g2 = ws.cell(row=fila_datos, column=col_total_pesos_g2, value=f"=SUM({col_tp_letra_g2}{inicio_g2}:{col_tp_letra_g2}{fin_g2})")
+  c_tot_tp_g2.fill = total_fill
+  c_tot_tp_g2.font = total_font
+  c_tot_tp_g2.alignment = Alignment(horizontal="right")
+  c_tot_tp_g2.border = thin_border
+  c_tot_tp_g2.number_format = '"$"#,##0'
+  coord_tp_g2 = f"{col_tp_letra_g2}{fila_datos}"
 
-  ws.column_dimensions["A"].width = 5
-  ws.column_dimensions["B"].width = 25
-  ws.column_dimensions[openpyxl.utils.get_column_letter(col_total_viajes_g1)].width = 15
-  ws.column_dimensions[openpyxl.utils.get_column_letter(col_total_pesos_g1)].width = 18
+  # --- CELDA DE TOTAL COMBINADO EN EL MEDIO-INFERIOR ---
+  fila_gran_total = fila_datos + 3
+  ws.cell(row=fila_gran_total, column=2, value="TOTAL RECAUDACIÓN GENERAL (GRUPOS 1 Y 2):").font = Font(bold=True, size=11, color="1F4E78")
+  ws.cell(row=fila_gran_total, column=2).alignment = Alignment(horizontal="right")
+  
+  celda_gran_total = ws.cell(row=fila_gran_total, column=col_total_pesos_g2, value=f"={coord_tp_g1}+{coord_tp_g2}")
+  celda_gran_total.font = Font(bold=True, size=13, color="1F4E78")
+  celda_gran_total.fill = PatternFill(start_color="BDD7EE", end_color="BDD7EE", fill_type="solid")
+  celda_gran_total.alignment = Alignment(horizontal="right", vertical="center")
+  celda_gran_total.border = Border(
+      left=Side(style="medium", color="1F4E78"),
+      right=Side(style="medium", color="1F4E78"),
+      top=Side(style="medium", color="1F4E78"),
+      bottom=Side(style="medium", color="1F4E78")
+  )
+  celda_gran_total.number_format = '"$"#,##0'
+
+  # --- AJUSTE AUTOMÁTICO DE ANCHO DE COLUMNAS PARA IMPRESIÓN COMPACTA ---
+  ws.column_dimensions["A"].width = 3
+  ws.column_dimensions["B"].width = 22
+  for col_idx in range(3, col_total_pesos_g2 + 1):
+    col_letra = openpyxl.utils.get_column_letter(col_idx)
+    if col_idx in [col_total_viajes_g1, col_total_pesos_g1, col_total_viajes_g2, col_total_pesos_g2]:
+      ws.column_dimensions[col_letra].width = 15
+    else:
+      ws.column_dimensions[col_letra].width = 4.2  # Columnas de días optimizadas para impresión
 
   output = io.BytesIO()
   wb.save(output)
