@@ -357,19 +357,12 @@ def generar_excel_bytes(datos, es_diario=False):
   return output.getvalue()
 
 
-def generar_excel_historial_pacientes(resumen_pacientes):
+def generar_excel_historial_detallado(historial_detalle):
   wb = openpyxl.Workbook()
   ws = wb.active
-  ws.title = "Historial Pacientes"
+  ws.title = "Historial Detallado"
 
-  encabezados = [
-      "Paciente",
-      "Días Completos",
-      "Días Medios",
-      "Ausencias",
-      "Total Días Viajados",
-      "Total Acumulado ($)",
-  ]
+  encabezados = ["Paciente", "Fecha", "Estado / Tipo de Viaje", "Valor ($)"]
   ws.append(encabezados)
 
   header_fill = PatternFill(
@@ -391,30 +384,18 @@ def generar_excel_historial_pacientes(resumen_pacientes):
     cell.border = thin_border
 
   fila_actual = 2
-  for nombre, datos_p in sorted(resumen_pacientes.items()):
-    ws.cell(row=fila_actual, column=1, value=nombre).border = thin_border
-    ws.cell(
-        row=fila_actual, column=2, value=datos_p["completos"]
-    ).border = thin_border
-    ws.cell(row=fila_actual, column=3, value=datos_p["medios"]).border = (
-        thin_border
-    )
-    ws.cell(row=fila_actual, column=4, value=datos_p["ausencias"]).border = (
-        thin_border
-    )
-    ws.cell(
-        row=fila_actual, column=5, value=datos_p["total_viajes"]
-    ).border = thin_border
+  for item in historial_detalle:
+    ws.cell(row=fila_actual, column=1, value=item["nombre"]).border = thin_border
+    ws.cell(row=fila_actual, column=2, value=item["fecha"]).border = thin_border
+    ws.cell(row=fila_actual, column=3, value=item["estado"]).border = thin_border
 
-    celda_val = ws.cell(
-        row=fila_actual, column=6, value=datos_p["total_monto"]
-    )
+    celda_val = ws.cell(row=fila_actual, column=4, value=item["valor"])
     celda_val.border = thin_border
     celda_val.number_format = '"$"#,##0'
 
     fila_actual += 1
 
-  column_widths = {"A": 25, "B": 18, "C": 15, "D": 15, "E": 20, "F": 20}
+  column_widths = {"A": 25, "B": 15, "C": 30, "D": 15}
   for col, width in column_widths.items():
     ws.column_dimensions[col].width = width
 
@@ -424,7 +405,7 @@ def generar_excel_historial_pacientes(resumen_pacientes):
   return output.getvalue()
 
 
-def generar_pdf_historial(resumen_pacientes, titulo_reporte):
+def generar_pdf_historial_detallado(historial_detalle, titulo_reporte):
   buffer = io.BytesIO()
   doc = SimpleDocTemplate(
       buffer,
@@ -441,9 +422,9 @@ def generar_pdf_historial(resumen_pacientes, titulo_reporte):
       "TitleStyle",
       parent=styles["Heading1"],
       fontName="Helvetica-Bold",
-      fontSize=16,
+      fontSize=15,
       textColor=colors.HexColor("#1F4E78"),
-      spaceAfter=15,
+      spaceAfter=10,
   )
   normal_style = ParagraphStyle(
       "NormalStyle",
@@ -463,25 +444,16 @@ def generar_pdf_historial(resumen_pacientes, titulo_reporte):
   )
   elements.append(Spacer(1, 15))
 
-  table_data = [[
-      "Paciente",
-      "Completos",
-      "Medios",
-      "Ausencias",
-      "Total Viajes",
-      "Acumulado",
-  ]]
-  for nombre, datos_p in sorted(resumen_pacientes.items()):
+  table_data = [["Paciente", "Fecha", "Estado / Tipo de Viaje", "Valor"]]
+  for item in historial_detalle:
     table_data.append([
-        nombre,
-        str(datos_p["completos"]),
-        str(datos_p["medios"]),
-        str(datos_p["ausencias"]),
-        str(datos_p["total_viajes"]),
-        f"${datos_p['total_monto']:,}",
+        item["nombre"],
+        item["fecha"],
+        item["estado"],
+        f"${item['valor']:,}",
     ])
 
-  t = Table(table_data, colWidths=[140, 70, 60, 65, 80, 85])
+  t = Table(table_data, colWidths=[150, 90, 200, 100])
   t.setStyle(
       TableStyle([
           ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F4E78")),
@@ -530,7 +502,6 @@ datos = cargar_registros_db()
 todos_pacientes = cargar_pacientes_db()
 
 if menu == "Registrar / Actualizar Viajes":
-  # Botón superior para agregar nuevo paciente directamente
   with st.expander("➕ Agregar Nuevo Paciente al Sistema"):
     nuevo_nombre = st.text_input(
         "Nombre y Apellido del Paciente", key="nuevo_nombre_paciente"
@@ -610,7 +581,6 @@ if menu == "Registrar / Actualizar Viajes":
       if fecha_str not in datos:
         datos[fecha_str] = {}
 
-      # --- CONFIGURACIÓN ESTRICTA DE PACIENTES PARA ESTE DÍA ---
       with st.expander(
           "⚙️ Seleccionar pacientes y turnos de hoy", expanded=False
       ):
@@ -682,7 +652,6 @@ if menu == "Registrar / Actualizar Viajes":
       )
       st.metric(label="👥 Pacientes Pendientes Hoy", value=pendientes_totales)
 
-      # --- RENDERIZAR TURNOS EXCLUSIVAMENTE CON LOS SELECCIONADOS DEL DÍA ---
       for turno_turno, titulo_turno in [
           ("05:40", "⏰ Turno 05:40 AM"),
           ("08:40", "⏰ Turno 08:40 AM"),
@@ -998,25 +967,25 @@ elif menu == "Resumen Mensual":
         )
 
 elif menu == "Historial de Pacientes":
-  st.header("📂 Historial General de Pacientes")
-  st.write("Consulta cuántos días hizo cada paciente y descarga el informe.")
+  st.header("📂 Historial Detallado de Pacientes")
+  st.write("Consulta los días específicos que viajó cada paciente, sus totales y exporta los informes.")
 
-  # Compilar historial de todos los pacientes
-  historial_pacientes = {}
+  # Compilar historial detallado por fecha y paciente
+  historial_detalle = []
+  resumen_pacientes = {}
+
   for p in todos_pacientes:
     nombre_p = p["nombre"]
-    historial_pacientes[nombre_p] = {
-        "completos": 0,
-        "medios": 0,
-        "ausencias": 0,
-        "total_viajes": 0,
-        "total_monto": 0
+    resumen_pacientes[nombre_p] = {
+        "completos": 0, "medios": 0, "ausencias": 0, "total_viajes": 0, "total_monto": 0
     }
 
-  for fecha, pacientes_dia in datos.items():
+  for fecha, pacientes_dia in sorted(
+      datos.items(), key=lambda x: datetime.strptime(x[0], "%d/%m/%Y")
+  ):
     for nombre, info in pacientes_dia.items():
-      if nombre not in historial_pacientes:
-        historial_pacientes[nombre] = {
+      if nombre not in resumen_pacientes:
+        resumen_pacientes[nombre] = {
             "completos": 0, "medios": 0, "ausencias": 0, "total_viajes": 0, "total_monto": 0
         }
       
@@ -1024,17 +993,23 @@ elif menu == "Historial de Pacientes":
       valor = info.get("valor", 0)
 
       if "Completo" in estado:
-        historial_pacientes[nombre]["completos"] += 1
-        historial_pacientes[nombre]["total_viajes"] += 1
+        resumen_pacientes[nombre]["completos"] += 1
+        resumen_pacientes[nombre]["total_viajes"] += 1
       elif "Medio" in estado:
-        historial_pacientes[nombre]["medios"] += 1
-        historial_pacientes[nombre]["total_viajes"] += 1
+        resumen_pacientes[nombre]["medios"] += 1
+        resumen_pacientes[nombre]["total_viajes"] += 1
       else:
-        historial_pacientes[nombre]["ausencias"] += 1
+        resumen_pacientes[nombre]["ausencias"] += 1
 
-      historial_pacientes[nombre]["total_monto"] += valor
+      resumen_pacientes[nombre]["total_monto"] += valor
 
-  # Opciones de filtrado para descarga
+      historial_detalle.append({
+          "nombre": nombre,
+          "fecha": fecha,
+          "estado": estado,
+          "valor": valor
+      })
+
   modo_descarga = st.radio(
       "Selecciona el alcance del reporte:",
       ["Todos juntos", "Paciente individual"],
@@ -1043,7 +1018,7 @@ elif menu == "Historial de Pacientes":
 
   paciente_seleccionado = None
   if modo_descarga == "Paciente individual":
-    nombres_disponibles = sorted(list(historial_pacientes.keys()))
+    nombres_disponibles = sorted(list(resumen_pacientes.keys()))
     if nombres_disponibles:
       paciente_seleccionado = st.selectbox("Elige al paciente", nombres_disponibles)
     else:
@@ -1051,9 +1026,8 @@ elif menu == "Historial de Pacientes":
 
   st.markdown("---")
 
-  # Mostrar tarjetas o tabla en pantalla
   if modo_descarga == "Todos juntos":
-    for nombre, datos_p in sorted(historial_pacientes.items()):
+    for nombre, datos_p in sorted(resumen_pacientes.items()):
       with st.container(border=True):
         st.markdown(f"### 👤 {nombre}")
         col1, col2, col3, col4 = st.columns(4)
@@ -1062,16 +1036,24 @@ elif menu == "Historial de Pacientes":
         col3.metric("🚗 Total Viajes", datos_p["total_viajes"])
         col4.metric("💰 Acumulado", f"${datos_p['total_monto']:,}")
 
-    # Preparar datos para descarga (Todos)
-    excel_bytes = generar_excel_historial_pacientes(historial_pacientes)
-    pdf_bytes = generar_pdf_historial(historial_pacientes, "Historial Completo de Todos los Pacientes")
+        # Mostrar lista clara de los días que viajó debajo de cada tarjeta
+        viajes_paciente = [item for item in historial_detalle if item["nombre"] == nombre]
+        if viajes_paciente:
+          with st.expander(f"Ver días y fechas de {nombre} ({len(viajes_paciente)} registros)"):
+            for v in viajes_paciente:
+              st.write(f"• **{v['fecha']}** — {v['estado']} (*${v['valor']:,}*)")
+        else:
+          st.write("*(Sin registros de viajes)*")
+
+    excel_bytes = generar_excel_historial_detallado(historial_detalle)
+    pdf_bytes = generar_pdf_historial_detallado(historial_detalle, "Historial Detallado de Todos los Pacientes")
 
     col_dl1, col_dl2 = st.columns(2)
     with col_dl1:
       st.download_button(
           label="📊 Descargar Excel (Todos)",
           data=excel_bytes,
-          file_name="historial_todos_pacientes.xlsx",
+          file_name="historial_detallado_todos.xlsx",
           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           type="primary",
           use_container_width=True
@@ -1080,7 +1062,7 @@ elif menu == "Historial de Pacientes":
       st.download_button(
           label="📄 Descargar PDF (Todos)",
           data=pdf_bytes,
-          file_name="historial_todos_pacientes.pdf",
+          file_name="historial_detallado_todos.pdf",
           mime="application/pdf",
           type="primary",
           use_container_width=True
@@ -1088,7 +1070,7 @@ elif menu == "Historial de Pacientes":
 
   else:
     if paciente_seleccionado:
-      datos_p = historial_pacientes[paciente_seleccionado]
+      datos_p = resumen_pacientes[paciente_seleccionado]
       with st.container(border=True):
         st.markdown(f"### 👤 {paciente_seleccionado}")
         col1, col2, col3, col4 = st.columns(4)
@@ -1097,9 +1079,17 @@ elif menu == "Historial de Pacientes":
         col3.metric("🚗 Total Días Viajados", datos_p["total_viajes"])
         col4.metric("💰 Total Acumulado", f"${datos_p['total_monto']:,}")
 
-      dict_individual = {paciente_seleccionado: datos_p}
-      excel_bytes = generar_excel_historial_pacientes(dict_individual)
-      pdf_bytes = generar_pdf_historial(dict_individual, f"Historial del Paciente: {paciente_seleccionado}")
+        st.markdown("#### 📅 Fechas y detalles de sus viajes:")
+        viajes_paciente = [item for item in historial_detalle if item["nombre"] == paciente_seleccionado]
+        if viajes_paciente:
+          for v in viajes_paciente:
+            st.write(f"• **{v['fecha']}** — {v['estado']} (*${v['valor']:,}*)")
+        else:
+          st.write("*(Sin registros de viajes)*")
+
+      detalle_individual = [item for item in historial_detalle if item["nombre"] == paciente_seleccionado]
+      excel_bytes = generar_excel_historial_detallado(detalle_individual)
+      pdf_bytes = generar_pdf_historial_detallado(detalle_individual, f"Historial Detallado del Paciente: {paciente_seleccionado}")
 
       col_dl1, col_dl2 = st.columns(2)
       with col_dl1:
