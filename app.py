@@ -497,6 +497,7 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
 
   dias_mes_total = calendar.monthrange(anio_sel, mes_sel)[1]
 
+  # Se incluyen TODOS los días de Lunes a Sábado para sincronizar exactamente con la app
   fechas_g1, dias_g1 = [], []
   fechas_g2, dias_g2 = [], []
   letras_dias = {0: "L", 1: "M", 2: "M", 3: "J", 4: "V", 5: "S", 6: "D"}
@@ -504,10 +505,9 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
   for dia in range(1, dias_mes_total + 1):
     dt_obj = date(anio_sel, mes_sel, dia)
     w_day = dt_obj.weekday()
-    if w_day in [0, 2, 4]:
+    if w_day != 6:  # Excluir domingos
       fechas_g1.append(dia)
       dias_g1.append(letras_dias[w_day])
-    elif w_day in [1, 3, 5]:
       fechas_g2.append(dia)
       dias_g2.append(letras_dias[w_day])
 
