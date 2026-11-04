@@ -162,7 +162,6 @@ def cargar_pacientes_db():
       data = response.data
     return data
   except Exception as e:
-    # Fallback seguro con IDs para evitar KeyError si la BD falla
     fallback = []
     for i, p in enumerate(DEFAULT_MWF):
       fallback.append({**p, "id": f"def_mwf_{i}", "grupo": "MWF"})
@@ -283,9 +282,12 @@ def actualizar_valores_paciente(info):
   elif reg_ida or reg_vuelta:
     info["estado"] = "Medio (Un solo tramo)"
     info["valor"] = TARIFA_MEDIO
+    # IMPORTANTE: Si es un solo tramo, desmarcamos "listo" automático para que no pise el 0.5
+    info["listo"] = False
   else:
     info["estado"] = "Ausente (No viajó)"
     info["valor"] = 0
+    info["listo"] = False
 
 
 def generar_excel_bytes(datos, es_diario=False):
@@ -585,8 +587,9 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
         reg_ida = info_reg.get("ida", False)
         reg_vuelta = info_reg.get("vuelta", False)
 
+        # Regla estricta: 1 si ambos tramos están marcados o botón Fin, 0.5 si solo uno, vacío si ninguno
         if (reg_ida and reg_vuelta) or is_listo:
-          val_celda = 1
+          val_celda = 1.0
         elif reg_ida or reg_vuelta:
           val_celda = 0.5
 
@@ -605,6 +608,7 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
     celda_tv.font = Font(bold=True)
     celda_tv.number_format = '0.0'
 
+    # Multiplicamos el total de viajes por $5000 (el 0.5 sumará automáticamente la mitad proporcional: $2500)
     celda_tp = ws.cell(row=fila, column=col_total_pesos_g1, value=f"={openpyxl.utils.get_column_letter(col_total_viajes_g1)}{fila}*{TARIFA_COMPLETO}")
     celda_tp.border = thin_border
     celda_tp.alignment = Alignment(horizontal="right")
@@ -705,7 +709,7 @@ def generar_excel_planilla_matricial(datos_registros, todos_pacs, anio_sel, mes_
         reg_vuelta = info_reg.get("vuelta", False)
 
         if (reg_ida and reg_vuelta) or is_listo:
-          val_celda = 1
+          val_celda = 1.0
         elif reg_ida or reg_vuelta:
           val_celda = 0.5
 
