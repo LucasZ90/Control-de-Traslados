@@ -992,4 +992,131 @@ elif menu == "Resumen Mensual":
             mime=(
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             ),
-            type
+            type="primary",
+            key=f"dl_mes_{mes_key}",
+            use_container_width=True,
+        )
+
+elif menu == "Historial de Pacientes":
+  st.header("📂 Historial General de Pacientes")
+  st.write("Consulta cuántos días hizo cada paciente y descarga el informe.")
+
+  # Compilar historial de todos los pacientes
+  historial_pacientes = {}
+  for p in todos_pacientes:
+    nombre_p = p["nombre"]
+    historial_pacientes[nombre_p] = {
+        "completos": 0,
+        "medios": 0,
+        "ausencias": 0,
+        "total_viajes": 0,
+        "total_monto": 0
+    }
+
+  for fecha, pacientes_dia in datos.items():
+    for nombre, info in pacientes_dia.items():
+      if nombre not in historial_pacientes:
+        historial_pacientes[nombre] = {
+            "completos": 0, "medios": 0, "ausencias": 0, "total_viajes": 0, "total_monto": 0
+        }
+      
+      estado = info.get("estado", "")
+      valor = info.get("valor", 0)
+
+      if "Completo" in estado:
+        historial_pacientes[nombre]["completos"] += 1
+        historial_pacientes[nombre]["total_viajes"] += 1
+      elif "Medio" in estado:
+        historial_pacientes[nombre]["medios"] += 1
+        historial_pacientes[nombre]["total_viajes"] += 1
+      else:
+        historial_pacientes[nombre]["ausencias"] += 1
+
+      historial_pacientes[nombre]["total_monto"] += valor
+
+  # Opciones de filtrado para descarga
+  modo_descarga = st.radio(
+      "Selecciona el alcance del reporte:",
+      ["Todos juntos", "Paciente individual"],
+      horizontal=True
+  )
+
+  paciente_seleccionado = None
+  if modo_descarga == "Paciente individual":
+    nombres_disponibles = sorted(list(historial_pacientes.keys()))
+    if nombres_disponibles:
+      paciente_seleccionado = st.selectbox("Elige al paciente", nombres_disponibles)
+    else:
+      st.warning("No hay pacientes registrados.")
+
+  st.markdown("---")
+
+  # Mostrar tarjetas o tabla en pantalla
+  if modo_descarga == "Todos juntos":
+    for nombre, datos_p in sorted(historial_pacientes.items()):
+      with st.container(border=True):
+        st.markdown(f"### 👤 {nombre}")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("🟢 Completos", datos_p["completos"])
+        col2.metric("🟡 Medios", datos_p["medios"])
+        col3.metric("🚗 Total Viajes", datos_p["total_viajes"])
+        col4.metric("💰 Acumulado", f"${datos_p['total_monto']:,}")
+
+    # Preparar datos para descarga (Todos)
+    excel_bytes = generar_excel_historial_pacientes(historial_pacientes)
+    pdf_bytes = generar_pdf_historial(historial_pacientes, "Historial Completo de Todos los Pacientes")
+
+    col_dl1, col_dl2 = st.columns(2)
+    with col_dl1:
+      st.download_button(
+          label="📊 Descargar Excel (Todos)",
+          data=excel_bytes,
+          file_name="historial_todos_pacientes.xlsx",
+          mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          type="primary",
+          use_container_width=True
+      )
+    with col_dl2:
+      st.download_button(
+          label="📄 Descargar PDF (Todos)",
+          data=pdf_bytes,
+          file_name="historial_todos_pacientes.pdf",
+          mime="application/pdf",
+          type="primary",
+          use_container_width=True
+      )
+
+  else:
+    if paciente_seleccionado:
+      datos_p = historial_pacientes[paciente_seleccionado]
+      with st.container(border=True):
+        st.markdown(f"### 👤 {paciente_seleccionado}")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("🟢 Días Completos", datos_p["completos"])
+        col2.metric("🟡 Días Medios", datos_p["medios"])
+        col3.metric("🚗 Total Días Viajados", datos_p["total_viajes"])
+        col4.metric("💰 Total Acumulado", f"${datos_p['total_monto']:,}")
+
+      dict_individual = {paciente_seleccionado: datos_p}
+      excel_bytes = generar_excel_historial_pacientes(dict_individual)
+      pdf_bytes = generar_pdf_historial(dict_individual, f"Historial del Paciente: {paciente_seleccionado}")
+
+      col_dl1, col_dl2 = st.columns(2)
+      with col_dl1:
+        st.download_button(
+            label=f"📊 Descargar Excel ({paciente_seleccionado})",
+            data=excel_bytes,
+            file_name=f"historial_{paciente_seleccionado.replace(' ', '_')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary",
+            use_container_width=True
+        )
+      with col_dl2:
+        st.download_button(
+            label=f"📄 Descargar PDF ({paciente_seleccionado})",
+            data=pdf_bytes,
+            file_name=f"historial_{paciente_seleccionado.replace(' ', '_')}.pdf",
+            mime="application/pdf",
+            type="primary",
+            use_container_width=True
+        )
